@@ -19,19 +19,27 @@ let auth: Auth | undefined;
 let db: Firestore | undefined;
 let analytics: ReturnType<typeof getAnalytics> | undefined;
 
-if (typeof window !== "undefined" && firebaseConfig.apiKey) {
-    try {
-        app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-        auth = getAuth(app);
-        db = getFirestore(app);
+if (typeof window !== "undefined") {
+    if (firebaseConfig.apiKey) {
+        try {
+            app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+            auth = getAuth(app);
+            db = getFirestore(app);
 
-        isSupported().then((supported) => {
-            if (supported && app) {
-                analytics = getAnalytics(app);
-            }
-        });
-    } catch (error) {
-        console.error("Firebase initialization error:", error);
+            isSupported().then((supported) => {
+                if (supported && app) {
+                    analytics = getAnalytics(app);
+                }
+            });
+        } catch (error) {
+            console.error("Firebase initialization error:", error);
+        }
+    } else {
+        console.warn(
+            "Firebase: NEXT_PUBLIC_FIREBASE_API_KEY is not set. " +
+            "Auth will not work. Add your Firebase environment variables to .env.local (for local dev) " +
+            "or to your Vercel project settings (for deployment)."
+        );
     }
 }
 
