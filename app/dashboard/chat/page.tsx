@@ -12,6 +12,30 @@ interface Message {
     timestamp?: string;
 }
 
+type LanguageKey = "english" | "hindi" | "tamil" | "telugu";
+
+type VoiceOption = {
+    id: string;
+    label: string;
+    gender: "male" | "female";
+};
+
+const languageCodeByKey: Record<LanguageKey, string> = {
+    english: "en-IN",
+    hindi: "hi-IN",
+    tamil: "ta-IN",
+    telugu: "te-IN",
+};
+
+const voiceOptions: VoiceOption[] = [
+    { id: "rahul", label: "Rahul (Male)", gender: "male" },
+    { id: "rohan", label: "Rohan (Male)", gender: "male" },
+    { id: "amit", label: "Amit (Male)", gender: "male" },
+    { id: "priya", label: "Priya (Female)", gender: "female" },
+    { id: "neha", label: "Neha (Female)", gender: "female" },
+    { id: "shreya", label: "Shreya (Female)", gender: "female" },
+];
+
 const quickPrompts = [
     "I am feeling anxious today",
     "Help me calm down",
@@ -51,9 +75,18 @@ export default function ChatPage() {
 
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
+    const [selectedLanguage, setSelectedLanguage] = useState<LanguageKey>("english");
+    const [selectedVoice, setSelectedVoice] = useState<string>(voiceOptions[0].id);
     const [isTyping, setIsTyping] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
+    const [isTranscribing, setIsTranscribing] = useState(false);
+    const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
     const [showCrisisAlert, setShowCrisisAlert] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const recorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+    const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+    const activeAudioUrlRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (!user) return;
@@ -75,6 +108,8 @@ export default function ChatPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages, isTyping]);
 
+    useEffect(() => () => stopSpeaking(), []);
+
     const isSendDisabled = !input.trim() || isTyping || !user;
 
     const greeting = useMemo(() => {
@@ -83,6 +118,19 @@ export default function ChatPage() {
         if (h < 17) return "Good afternoon";
         return "Good evening";
     }, []);
+
+    function stopSpeaking() {
+        if (activeAudioRef.current) {
+            activeAudioRef.current.pause();
+            activeAudioRef.current.currentTime = 0;
+            activeAudioRef.current = null;
+        }
+        if (activeAudioUrlRef.current) {
+            URL.revokeObjectURL(activeAudioUrlRef.current);
+            activeAudioUrlRef.current = null;
+        }
+        setSpeakingMessageId(null);
+    }
 
     const sendMessage = async (text: string) => {
         if (!text.trim() || !user || isTyping) return;
@@ -106,7 +154,7 @@ export default function ChatPage() {
             const res = await fetch("/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ uid: user.uid, text }),
+                body: JSON.stringify({ uid: user.uid, text, responseLanguage: selectedLanguage }),
             });
 
             const data = await res.json();
@@ -120,6 +168,7 @@ export default function ChatPage() {
                 if (detectCrisis(String(data.aiMessage.text || ""))) {
                     setShowCrisisAlert(true);
                 }
+                await playAiMessage(data.aiMessage, Date.now());
             }
         } catch (err: any) {
             console.error("Chat Error:", err);
@@ -132,6 +181,112 @@ export default function ChatPage() {
             setMessages((prev) => [...prev, errorMessage]);
         } finally {
             setIsTyping(false);
+        }
+    };
+
+    const handleVoiceInput = async () => {
+        if (!user || isTyping || isTranscribing) return;
+        stopSpeaking();
+
+        if (isRecording) {
+            recorderRef.current?.stop();
+            setIsRecording(false);
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            recorderRef.current = recorder;
+            audioChunksRef.current = [];
+
+            recorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+
+            recorder.onstop = async () => {
+                setIsTranscribing(true);
+                try {
+                    const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+                    const formData = new FormData();
+                    formData.append("file", blob, "voice.webm");
+                    formData.append("mode", "transcribe");
+                    formData.append("model", "saaras:v3");
+                    formData.append("languageCode", languageCodeByKey[selectedLanguage]);
+
+                    const response = await fetch("/api/voice/stt", {
+                        method: "POST",
+                        body: formData,
+                    });
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data?.error || "Could not transcribe audio");
+                    }
+
+                    const transcript = String(data?.transcript || "").trim();
+                    if (transcript) {
+                        await sendMessage(transcript);
+                    }
+                } catch (err) {
+                    console.error("Voice transcription error:", err);
+                } finally {
+                    setIsTranscribing(false);
+                    stream.getTracks().forEach((track) => track.stop());
+                }
+            };
+
+            recorder.start();
+            setIsRecording(true);
+        } catch (err) {
+            console.error("Microphone access error:", err);
+        }
+    };
+
+    const playAiMessage = async (msg: Message, index: number) => {
+        const messageId = msg.id || `ai-${index}`;
+        if (speakingMessageId === messageId) return;
+        stopSpeaking();
+
+        try {
+            setSpeakingMessageId(messageId);
+            const response = await fetch("/api/voice/tts", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    text: msg.text,
+                    languageCode: languageCodeByKey[selectedLanguage],
+                    model: "bulbul:v3",
+                    speaker: selectedVoice,
+                }),
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data?.error || "Could not generate audio");
+            }
+
+            const base64 = String(data?.audioBase64 || "");
+            if (!base64) return;
+
+            const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+            const blob = new Blob([bytes], { type: data?.mimeType || "audio/wav" });
+            const objectUrl = URL.createObjectURL(blob);
+            const audio = new Audio(objectUrl);
+            activeAudioRef.current = audio;
+            activeAudioUrlRef.current = objectUrl;
+            audio.onended = () => {
+                URL.revokeObjectURL(objectUrl);
+                activeAudioRef.current = null;
+                activeAudioUrlRef.current = null;
+                setSpeakingMessageId(null);
+            };
+            await audio.play();
+        } catch (err) {
+            console.error("TTS playback error:", err);
+            stopSpeaking();
         }
     };
 
@@ -284,6 +439,24 @@ export default function ChatPage() {
                                         }}
                                     >
                                         <p style={{ fontSize: 13.5, lineHeight: 1.6, fontWeight: 600, margin: 0 }}>{msg.text}</p>
+                                        {!isUser && (
+                                            <button
+                                                onClick={() => playAiMessage(msg, idx)}
+                                                style={{
+                                                    marginTop: 8,
+                                                    border: `1px solid ${t.accentBorder}`,
+                                                    background: "transparent",
+                                                    color: t.accent,
+                                                    borderRadius: 8,
+                                                    padding: "4px 8px",
+                                                    fontSize: 10.5,
+                                                    fontWeight: 700,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                {(speakingMessageId === (msg.id || `ai-${idx}`)) ? "Playing..." : "Play voice"}
+                                            </button>
+                                        )}
                                         <span style={{ fontSize: 10, opacity: isUser ? 0.84 : 0.5, marginTop: 6, display: "block", fontWeight: 700 }}>
                                             {formatTime(msg.timestamp)}
                                         </span>
@@ -320,6 +493,77 @@ export default function ChatPage() {
                 </div>
 
                 <div style={{ borderTop: `1px solid ${t.divider}`, padding: "12px 12px 14px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, marginBottom: 10 }}>
+                        <select
+                            value={selectedLanguage}
+                            onChange={(e) => setSelectedLanguage(e.target.value as LanguageKey)}
+                            style={{
+                                border: `1px solid ${t.accentBorder}`,
+                                background: t.cardBg,
+                                color: t.text,
+                                borderRadius: 10,
+                                padding: "8px 10px",
+                                fontSize: 12,
+                                fontWeight: 700,
+                            }}
+                        >
+                            <option value="english">English</option>
+                            <option value="hindi">Hindi</option>
+                            <option value="tamil">Tamil</option>
+                            <option value="telugu">Telugu</option>
+                        </select>
+
+                        <select
+                            value={selectedVoice}
+                            onChange={(e) => {
+                                stopSpeaking();
+                                setSelectedVoice(e.target.value);
+                            }}
+                            style={{
+                                border: `1px solid ${t.accentBorder}`,
+                                background: t.cardBg,
+                                color: t.text,
+                                borderRadius: 10,
+                                padding: "8px 10px",
+                                fontSize: 12,
+                                fontWeight: 700,
+                            }}
+                        >
+                            <optgroup label="Male Voices">
+                                {voiceOptions.filter((v) => v.gender === "male").map((voice) => (
+                                    <option key={voice.id} value={voice.id}>
+                                        {voice.label}
+                                    </option>
+                                ))}
+                            </optgroup>
+                            <optgroup label="Female Voices">
+                                {voiceOptions.filter((v) => v.gender === "female").map((voice) => (
+                                    <option key={voice.id} value={voice.id}>
+                                        {voice.label}
+                                    </option>
+                                ))}
+                            </optgroup>
+                        </select>
+
+                        <button
+                            onClick={stopSpeaking}
+                            disabled={!speakingMessageId}
+                            style={{
+                                border: `1px solid ${t.accentBorder}`,
+                                background: t.cardBg,
+                                color: t.text,
+                                borderRadius: 10,
+                                padding: "8px 10px",
+                                fontSize: 12,
+                                fontWeight: 800,
+                                cursor: speakingMessageId ? "pointer" : "not-allowed",
+                                opacity: speakingMessageId ? 1 : 0.5,
+                            }}
+                        >
+                            Stop Voice
+                        </button>
+                    </div>
+
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
                         {quickPrompts.map((prompt) => (
                             <button
@@ -376,6 +620,32 @@ export default function ChatPage() {
                                 fontFamily: "inherit",
                             }}
                         />
+
+                        <motion.button
+                            whileHover={!user || isTyping || isTranscribing ? undefined : { scale: 1.05 }}
+                            whileTap={!user || isTyping || isTranscribing ? undefined : { scale: 0.95 }}
+                            onClick={handleVoiceInput}
+                            disabled={!user || isTyping || isTranscribing}
+                            style={{
+                                width: 38,
+                                height: 38,
+                                borderRadius: 10,
+                                border: "none",
+                                background: isRecording ? "linear-gradient(135deg, #d94f4f 0%, #b43f3f 100%)" : "rgba(199,109,133,0.25)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: !user || isTyping || isTranscribing ? "not-allowed" : "pointer",
+                                opacity: !user || isTyping || isTranscribing ? 0.45 : 1,
+                                color: isRecording ? "#fff" : t.text,
+                                fontSize: 16,
+                                fontWeight: 800,
+                            }}
+                            aria-label="Record voice"
+                            title={isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : "Record voice"}
+                        >
+                            {isTranscribing ? "..." : isRecording ? "Stop" : "Mic"}
+                        </motion.button>
 
                         <motion.button
                             whileHover={isSendDisabled ? undefined : { scale: 1.05 }}

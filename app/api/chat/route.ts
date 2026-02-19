@@ -66,7 +66,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         await connectToDatabase();
-        const { uid, text } = await request.json();
+        const { uid, text, responseLanguage } = await request.json();
+        const selectedLanguage =
+            responseLanguage === "hindi" || responseLanguage === "tamil" || responseLanguage === "telugu"
+                ? responseLanguage
+                : "english";
 
         if (!uid || !text) {
             return NextResponse.json({ error: "Missing uid or text" }, { status: 400 });
@@ -97,6 +101,7 @@ export async function POST(request: Request) {
             try {
                 aiText = await generateChatReply({
                     userText: text,
+                    responseLanguage: selectedLanguage,
                     retrievedContext: memories.map((m) => ({
                         source: m.source,
                         role: m.role,
