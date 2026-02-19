@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import DoctorProfile from "@/models/DoctorProfile";
 import DoctorSlot from "@/models/DoctorSlot";
 import { ensureDoctorsSeeded, ensureSlotsSeeded } from "@/lib/doctorsSeed";
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
     try {
