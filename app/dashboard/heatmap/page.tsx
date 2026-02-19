@@ -88,7 +88,7 @@ export default function HeatmapPage() {
     }, [data]);
 
     // Stats
-    const loggedDays = data.filter((d) => d.level >= 0);
+    const loggedDays = data.filter((d) => d && d.level >= 0);
     const totalLogged = loggedDays.length;
     const avgLevel = totalLogged > 0 ? (loggedDays.reduce((s, d) => s + d.level, 0) / totalLogged) : 0;
 
@@ -96,14 +96,16 @@ export default function HeatmapPage() {
     const todayStr = new Date().toISOString().split("T")[0];
     let bestStreak = 0, curStreak = 0, currentStreak = 0;
     for (const d of data) {
+        if (!d || !d.date) continue;
         if (d.date > todayStr) break; // don't count future
         if (d.level >= 0) { curStreak++; bestStreak = Math.max(bestStreak, curStreak); }
         else { curStreak = 0; }
     }
     // Current streak (from today backwards)
-    const todayIdx = data.findIndex((d) => d.date === todayStr);
+    const todayIdx = data.findIndex((d) => d && d.date === todayStr);
     if (todayIdx >= 0) {
         for (let i = todayIdx; i >= 0; i--) {
+            if (!data[i] || !data[i].date) continue;
             if (data[i].level >= 0) currentStreak++;
             else break;
         }
@@ -120,6 +122,7 @@ export default function HeatmapPage() {
     // Mood breakdown
     const moodCounts: Record<string, { count: number; color: string }> = {};
     for (const d of loggedDays) {
+        if (!d || !d.mood) continue;
         if (!moodCounts[d.mood]) moodCounts[d.mood] = { count: 0, color: d.color || MOOD_COLORS[d.mood] || "#c76d85" };
         moodCounts[d.mood].count++;
     }
