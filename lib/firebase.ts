@@ -13,25 +13,26 @@ const firebaseConfig = {
     measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase only on the client (skip during SSR/prerendering)
+// Initialize Firebase on the client when config is available
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
+let analytics: ReturnType<typeof getAnalytics> | undefined;
 
-if (typeof window !== "undefined") {
-    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-    auth = getAuth(app);
-    db = getFirestore(app);
-}
+if (typeof window !== "undefined" && firebaseConfig.apiKey) {
+    try {
+        app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+        auth = getAuth(app);
+        db = getFirestore(app);
 
-let analytics;
-if (typeof window !== "undefined" && app) {
-    // Analytics only works in browser environment
-    isSupported().then((supported) => {
-        if (supported) {
-            analytics = getAnalytics(app!);
-        }
-    });
+        isSupported().then((supported) => {
+            if (supported && app) {
+                analytics = getAnalytics(app);
+            }
+        });
+    } catch (error) {
+        console.error("Firebase initialization error:", error);
+    }
 }
 
 export { auth, db, analytics };
