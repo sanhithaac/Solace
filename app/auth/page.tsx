@@ -426,7 +426,7 @@ function Mtns() {
 
 export default function AuthPage() {
     return (
-        <Suspense>
+        <Suspense fallback={null}>
             <AuthPageContent />
         </Suspense>
     );
