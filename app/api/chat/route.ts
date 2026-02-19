@@ -2,7 +2,51 @@ import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import Conversation from "@/models/Conversation";
 import { buildRagReply, retrieveMemories, storeMemory } from "@/lib/ragMemory";
-import { classifyRisk, generateChatReply, shouldExtractMemory } from "@/lib/gemini";
+import { generateChatReply } from "@/lib/gemini";
+
+function isHighRiskText(text: string) {
+    const value = text.toLowerCase();
+    const patterns = [
+        "i want to die",
+        "i wanna die",
+        "kill myself",
+        "end my life",
+        "suicide",
+        "self harm",
+        "hurt myself",
+        "not safe",
+    ];
+    return patterns.some((p) => value.includes(p));
+}
+
+function inferRiskFromText(text: string) {
+    const value = text.toLowerCase();
+    if (isHighRiskText(text)) return "suicide_risk";
+    if (value.includes("self harm") || value.includes("hurt myself")) return "self_harm_risk";
+    const distressTerms = ["panic", "anxious", "hopeless", "overwhelmed", "can't cope", "cant cope", "breakdown"];
+    if (distressTerms.some((t) => value.includes(t))) return "emotional_distress";
+    return "safe";
+}
+
+function inferMemoryDecision(text: string) {
+    const trimmed = text.trim();
+    if (trimmed.length < 35) return { shouldRemember: false };
+    const lowered = trimmed.toLowerCase();
+    if (
+        lowered.includes("i am") ||
+        lowered.includes("i feel") ||
+        lowered.includes("my family") ||
+        lowered.includes("my work") ||
+        lowered.includes("always")
+    ) {
+        return {
+            shouldRemember: true,
+            memoryType: "life_context",
+            summary: trimmed.slice(0, 180),
+        };
+    }
+    return { shouldRemember: false };
+}
 
 export async function GET(request: Request) {
     try {
@@ -37,27 +81,34 @@ export async function POST(request: Request) {
         // 2. Add user message in local conversation history
         conversation.messages.push({ role: "user", text });
 
-        // 3. RAG retrieval (top 8 per user) from python memory service
-        const memories = await retrieveMemories({ uid, query: text, topK: 8 });
-        const risk = await classifyRisk(text);
-        const memoryDecision = await shouldExtractMemory(text);
+        // 3. RAG retrieval + risk + memory extraction
+        const [memories] = await Promise.all([retrieveMemories({ uid, query: text, topK: 8 })]);
+        const risk = inferRiskFromText(text);
+        const memoryDecision = inferMemoryDecision(text);
 
         // 4. Build grounded response via Gemini (fallback to local builder)
         let aiText = "";
-        try {
-            aiText = await generateChatReply({
-                userText: text,
-                retrievedContext: memories.map((m) => ({
-                    source: m.source,
-                    role: m.role,
-                    text: m.text,
-                    similarity: m.similarity,
-                    createdAtMs: m.createdAtMs,
-                })),
-            });
-        } catch (err) {
-            console.error("Gemini chat fallback:", err);
-            aiText = buildRagReply(text, memories);
+        if (risk === "self_harm_risk" || risk === "suicide_risk") {
+            aiText =
+                "I'm really glad you told me. If you're in immediate danger, call or text 988 right now (U.S.). " +
+                "If you can, please reach out to someone you trust and stay with them while you get support. " +
+                "I'm here with you, and we can take this one step at a time.";
+        } else {
+            try {
+                aiText = await generateChatReply({
+                    userText: text,
+                    retrievedContext: memories.map((m) => ({
+                        source: m.source,
+                        role: m.role,
+                        text: m.text,
+                        similarity: m.similarity,
+                        createdAtMs: m.createdAtMs,
+                    })),
+                });
+            } catch (err) {
+                console.error("Gemini chat fallback:", err);
+                aiText = buildRagReply(text, memories);
+            }
         }
 
         // 5. Add AI response to local conversation history

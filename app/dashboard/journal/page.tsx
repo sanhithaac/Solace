@@ -150,11 +150,20 @@ export default function JournalPage() {
         setIsAnalyzing(true);
 
         try {
-            await new Promise((resolve) => setTimeout(resolve, 400));
-            setAnalysis(buildAnalysis(newEntry));
+            const res = await fetch("/api/journal/analyze", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ content: newEntry }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.analysis) {
+                throw new Error(data?.error || "Could not analyze right now.");
+            }
+            setAnalysis(data.analysis);
         } catch (err) {
             console.error("Analyze failed:", err);
-            setError("Could not analyze right now. Please try again.");
+            setAnalysis(buildAnalysis(newEntry));
+            setError("AI analysis unavailable, showing local analysis.");
         } finally {
             setIsAnalyzing(false);
         }

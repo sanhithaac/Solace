@@ -65,7 +65,7 @@ export async function retrieveMemories(params: { uid: string; query: string; top
 export function buildRagReply(userText: string, memories: StoredMemory[]) {
     const trimmed = userText.trim();
     if (!memories.length) {
-        return `I hear you. ${trimmed}\n\nLet's work with what you're feeling right now. If you want, I can help you break this into one small next step and one grounding action.`;
+        return `I hear you, and I’m with you. Want to pick one tiny step for the next 10 minutes so this feels lighter?`;
     }
 
     const top = memories.slice(0, 3);
@@ -84,5 +84,5 @@ export function buildRagReply(userText: string, memories: StoredMemory[]) {
         hints.push("Choose one tiny action you can complete in 10 minutes.");
     }
 
-    return `I hear you. Based on your recent reflections, this seems connected to themes you've been carrying before.\n\nRight now, try this:\n- ${hints.join("\n- ")}\n\nIf you want, I can help you make a concrete plan for the next hour.`;
+    return `I hear you, and this sounds familiar from what you've been carrying lately. Try this now: ${hints[0]} If you want, I can help you map one small plan for the next hour.`;
 }
