@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import MoodLog from "@/models/MoodLog";
 import User from "@/models/User";
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
     try {
