@@ -1,6 +1,6 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
+import { getAuth, Auth } from "firebase/auth";
+import { getFirestore, Firestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -13,18 +13,23 @@ const firebaseConfig = {
     measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase (Singleton)
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+// Initialize Firebase only when config is available (skip during prerendering/build)
+let app: FirebaseApp | undefined;
+let auth: Auth;
+let db: Firestore;
 
-const auth = getAuth(app);
-const db = getFirestore(app);
+if (firebaseConfig.apiKey) {
+    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    auth = getAuth(app);
+    db = getFirestore(app);
+}
 
 let analytics;
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && app) {
     // Analytics only works in browser environment
     isSupported().then((supported) => {
         if (supported) {
-            analytics = getAnalytics(app);
+            analytics = getAnalytics(app!);
         }
     });
 }
