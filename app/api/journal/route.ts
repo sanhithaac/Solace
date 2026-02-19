@@ -4,6 +4,7 @@ import JournalEntry from "@/models/JournalEntry";
 import User from "@/models/User";
 import { storeMemory } from "@/lib/ragMemory";
 import { analyzeJournal } from "@/lib/gemini";
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
     try {
