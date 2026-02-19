@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 
 const greetings = ["Good morning", "Good afternoon", "Good evening"];
 function getGreeting() {
@@ -10,37 +11,52 @@ function getGreeting() {
     return h < 12 ? greetings[0] : h < 17 ? greetings[1] : greetings[2];
 }
 
-const quickStats = [
-    { label: "Mood Streak", value: "12 days", icon: "🔥", delta: "+2" },
-    { label: "Journal Entries", value: "47", icon: "📝", delta: "+3 this week" },
-    { label: "Tasks Done", value: "8/12", icon: "✅", delta: "67%" },
-    { label: "Focus Time", value: "3h 20m", icon: "⏱️", delta: "Today" },
-];
-
-const recentActivity = [
-    { type: "journal", text: "Wrote a journal entry about gratitude", time: "2h ago", mood: "😊" },
-    { type: "pomodoro", text: "Completed 4 pomodoro sessions", time: "4h ago", mood: "💪" },
-    { type: "mood", text: "Logged mood: Feeling calm", time: "6h ago", mood: "😌" },
-    { type: "community", text: "Joined 'Study Buddies' community", time: "1d ago", mood: "🤝" },
-    { type: "wellness", text: "Completed 10-min breathing exercise", time: "1d ago", mood: "🧘" },
+const defaultStats = [
+    { label: "Mood Streak", value: "0 days", icon: "🔥", delta: "0 this week" },
+    { label: "Journal Entries", value: "0", icon: "📝", delta: "+0 this week" },
+    { label: "Tasks Done", value: "0/0", icon: "✅", delta: "0%" },
+    { label: "Focus Time", value: "0m", icon: "⏱️", delta: "Today" },
 ];
 
 const dailyChallenges = [
-    { title: "Write 3 things you're grateful for", xp: 20, done: true },
-    { title: "Complete a 25-min pomodoro session", xp: 15, done: true },
+    { title: "Write 3 things you're grateful for", xp: 20, done: false },
+    { title: "Complete a 25-min pomodoro session", xp: 15, done: false },
     { title: "Log your mood for today", xp: 10, done: false },
     { title: "Read one wellness article", xp: 10, done: false },
 ];
 
 export default function DashboardPage() {
-    const { t, isDark } = useTheme();
+    const { t } = useTheme();
+    const { user } = useAuth();
+    const [quickStats, setQuickStats] = useState(defaultStats);
+    const [recentActivity, setRecentActivity] = useState<any[]>([]);
+    const [displayName, setDisplayName] = useState("User");
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!user) return;
+        const fetchDashboard = async () => {
+            try {
+                const res = await fetch(`/api/dashboard?uid=${user.uid}`);
+                const data = await res.json();
+                if (data.quickStats) setQuickStats(data.quickStats);
+                if (data.recentActivity) setRecentActivity(data.recentActivity);
+                if (data.user?.displayName) setDisplayName(data.user.displayName);
+            } catch (err) {
+                console.error("Dashboard fetch error:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchDashboard();
+    }, [user]);
 
     return (
         <>
             {/* Header */}
             <div style={{ marginBottom: 32 }}>
                 <h1 style={{ fontSize: 28, fontWeight: 800, color: t.text, letterSpacing: "-0.03em", marginBottom: 4 }}>
-                    {getGreeting()}, <span style={{ background: t.accentGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>User</span> 👋
+                    {getGreeting()}, <span style={{ background: t.accentGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{displayName}</span> 👋
                 </h1>
                 <p style={{ fontSize: 14, color: t.textSoft, fontWeight: 500 }}>
                     Here&apos;s how your wellness journey is going.
@@ -86,7 +102,9 @@ export default function DashboardPage() {
                 >
                     <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 16, letterSpacing: "-0.01em" }}>Recent Activity</h3>
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                        {recentActivity.map((a, i) => (
+                        {recentActivity.length === 0 ? (
+                            <p style={{ fontSize: 13, color: t.textSoft, textAlign: "center", padding: 20 }}>No activity yet. Start by logging your mood or writing a journal entry!</p>
+                        ) : recentActivity.map((a, i) => (
                             <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: i < recentActivity.length - 1 ? `1px solid ${t.divider}` : "none" }}>
                                 <span style={{ fontSize: 20 }}>{a.mood}</span>
                                 <div style={{ flex: 1 }}>

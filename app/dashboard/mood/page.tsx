@@ -1,30 +1,22 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 
 const moods = [
-    { emoji: "😄", label: "Great", color: "#4caf7c" },
-    { emoji: "😊", label: "Good", color: "#6bdb8e" },
-    { emoji: "😐", label: "Okay", color: "#f0c35a" },
-    { emoji: "😔", label: "Low", color: "#e8a830" },
-    { emoji: "😢", label: "Sad", color: "#ef6b6b" },
-    { emoji: "😤", label: "Angry", color: "#d94f4f" },
-    { emoji: "😰", label: "Anxious", color: "#e88a30" },
-    { emoji: "😴", label: "Tired", color: "#9e9e9e" },
+    { emoji: "😄", label: "Great", color: "#4caf7c", level: 5 },
+    { emoji: "😊", label: "Good", color: "#6bdb8e", level: 4 },
+    { emoji: "😐", label: "Okay", color: "#f0c35a", level: 3 },
+    { emoji: "😔", label: "Low", color: "#e8a830", level: 2 },
+    { emoji: "😢", label: "Sad", color: "#ef6b6b", level: 1 },
+    { emoji: "😤", label: "Angry", color: "#d94f4f", level: 1 },
+    { emoji: "😰", label: "Anxious", color: "#e88a30", level: 1 },
+    { emoji: "😴", label: "Tired", color: "#9e9e9e", level: 2 },
 ];
 
-const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const moodHistory = [
-    { day: "Mon", mood: "😊", level: 4 },
-    { day: "Tue", mood: "😄", level: 5 },
-    { day: "Wed", mood: "😐", level: 3 },
-    { day: "Thu", mood: "😊", level: 4 },
-    { day: "Fri", mood: "😔", level: 2 },
-    { day: "Sat", mood: "😄", level: 5 },
-    { day: "Sun", mood: "😊", level: 4 },
-];
+const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const cycleData = {
     currentDay: 14,
@@ -42,8 +34,67 @@ const cycleData = {
 
 export default function MoodPage() {
     const { t, mode } = useTheme();
-    const [selectedMood, setSelectedMood] = useState<string | null>(null);
+    const { user } = useAuth();
+    const [selectedMood, setSelectedMood] = useState<any>(null);
+    const [history, setHistory] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+
     const isWomen = mode === "women";
+
+    // Load mood history
+    useEffect(() => {
+        if (!user) return;
+        const fetchMood = async () => {
+            try {
+                const res = await fetch(`/api/mood?uid=${user.uid}`);
+                const data = await res.json();
+                if (data.logs) {
+                    const last7 = weekDays.map((day) => {
+                        const log = data.logs.find((l: any) => weekDays[new Date(l.createdAt).getDay()] === day);
+                        if (log) {
+                            const mDef = moods.find(m => m.label === log.mood) || moods[2];
+                            return { day, mood: mDef.emoji, level: mDef.level };
+                        }
+                        return { day, mood: "-", level: 0 };
+                    });
+                    setHistory(last7);
+                }
+            } catch (err) {
+                console.error("Mood history error:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchMood();
+    }, [user]);
+
+    const handleLogMood = async () => {
+        if (!user || !selectedMood) return;
+        setSaving(true);
+        try {
+            const res = await fetch("/api/mood", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    uid: user.uid,
+                    mood: selectedMood.label,
+                    icon: selectedMood.emoji,
+                    note: ""
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                const dayName = weekDays[new Date().getDay()];
+                setHistory(prev => prev.map(d => d.day === dayName ? { ...d, mood: selectedMood.emoji, level: selectedMood.level } : d));
+                setSelectedMood(null);
+            }
+        } catch (err) {
+            console.error("Log failed:", err);
+        } finally {
+            setSaving(false);
+        }
+    };
 
     return (
         <>
@@ -63,16 +114,16 @@ export default function MoodPage() {
                             key={m.label}
                             whileHover={{ scale: 1.08 }}
                             whileTap={{ scale: 0.95 }}
-                            onClick={() => setSelectedMood(m.label)}
+                            onClick={() => setSelectedMood(m)}
                             style={{
-                                padding: "12px 18px", borderRadius: 12, border: `1.5px solid ${selectedMood === m.label ? m.color : t.cardBorder}`,
-                                background: selectedMood === m.label ? `${m.color}15` : "transparent",
+                                padding: "12px 18px", borderRadius: 12, border: `1.5px solid ${selectedMood?.label === m.label ? m.color : t.cardBorder}`,
+                                background: selectedMood?.label === m.label ? `${m.color}15` : "transparent",
                                 cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
                                 fontFamily: "inherit", transition: "all 0.2s",
                             }}
                         >
                             <span style={{ fontSize: 28 }}>{m.emoji}</span>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: selectedMood === m.label ? m.color : t.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{m.label}</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: selectedMood?.label === m.label ? m.color : t.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{m.label}</span>
                         </motion.button>
                     ))}
                 </div>
@@ -80,13 +131,15 @@ export default function MoodPage() {
                     <motion.button
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
+                        onClick={handleLogMood}
+                        disabled={saving}
                         style={{
                             marginTop: 16, padding: "10px 24px", borderRadius: 10, border: "none",
                             background: t.accentGrad, color: "#fff", fontSize: 13, fontWeight: 700,
-                            cursor: "pointer", fontFamily: "inherit",
+                            cursor: "pointer", fontFamily: "inherit", opacity: saving ? 0.7 : 1
                         }}
                     >
-                        Log Mood (+10 XP) ✨
+                        {saving ? "Saving..." : "Log Mood (+20 XP) ✨"}
                     </motion.button>
                 )}
             </div>
@@ -96,7 +149,9 @@ export default function MoodPage() {
                 <div style={{ padding: 22, borderRadius: 16, background: t.cardBg, border: `1px solid ${t.cardBorder}` }}>
                     <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 18 }}>This Week</h3>
                     <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 140 }}>
-                        {moodHistory.map((d, i) => (
+                        {loading ? (
+                            <p style={{ fontSize: 12, color: t.textSoft, width: "100%", textAlign: "center" }}>Loading chart...</p>
+                        ) : history.map((d, i) => (
                             <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                                 <span style={{ fontSize: 18 }}>{d.mood}</span>
                                 <motion.div

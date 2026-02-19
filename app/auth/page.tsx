@@ -1,14 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/context/AuthContext";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { useRouter } from "next/navigation";
 
-type UserMode = "student" | "women";
 type AuthView = "login" | "signup";
 type SignupType = "anonymous" | "full";
 
 export default function AuthPage() {
-    const [mode, setMode] = useState<UserMode>("student");
     const [authView, setAuthView] = useState<AuthView>("signup");
     const [signupType, setSignupType] = useState<SignupType>("anonymous");
     const [showPassword, setShowPassword] = useState(false);
@@ -16,8 +18,13 @@ export default function AuthPage() {
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
 
-    const isDark = mode === "student";
+    const { signInAnon, signInGoogle } = useAuth();
+    const router = useRouter();
+
+    const isDark = false;
 
     useEffect(() => {
         setUsername("");
@@ -25,56 +32,56 @@ export default function AuthPage() {
         setPassword("");
         setShowPassword(false);
         setSignupType("anonymous");
-    }, [authView, mode]);
+    }, [authView]);
 
-    const handleSubmit = useCallback(
-        (e: React.FormEvent) => {
-            e.preventDefault();
-            console.log("Submit:", { mode, authView, signupType, username, email, password });
-        },
-        [mode, authView, signupType, username, email, password]
-    );
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError("");
+        setLoading(true);
+
+        try {
+            if (authView === "login") {
+                await signInWithEmailAndPassword(auth, email, password);
+                router.push("/dashboard");
+            } else {
+                if (signupType === "anonymous") {
+                    await signInAnon();
+                } else {
+                    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                    if (username) {
+                        await updateProfile(userCredential.user, { displayName: username });
+                    }
+                    router.push("/dashboard");
+                }
+            }
+        } catch (err: any) {
+            console.error("Auth Error:", err);
+            setError(err.message || "An error occurred during authentication.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const t = {
-        student: {
-            leftBg: "linear-gradient(155deg, #0b1a3b 0%, #132952 30%, #1a3a6e 55%, #0f2550 80%, #0b1a3b 100%)",
-            accent: "#8ba4e8",
-            accentSoft: "rgba(139,164,232,0.1)",
-            accentBorder: "rgba(139,164,232,0.18)",
-            accentGrad: "linear-gradient(135deg, #4a6ec9 0%, #8ba4e8 100%)",
-            formBg: "#080f20",
-            formBorder: "rgba(139,164,232,0.06)",
-            inputBg: "rgba(139,164,232,0.05)",
-            inputBorder: "rgba(139,164,232,0.12)",
-            inputFocus: "rgba(139,164,232,0.25)",
-            text: "#e4eaf8",
-            textSoft: "rgba(228,234,248,0.5)",
-            textMuted: "rgba(228,234,248,0.25)",
-            socialHover: "rgba(139,164,232,0.07)",
-            tagline: "Your mind matters.\nLet\u2019s take care of it.",
-            subtitle: "Safe \u00b7 Anonymous \u00b7 Always here",
-            quote: "\u201cYou don\u2019t have to control your thoughts. You just have to stop letting them control you.\u201d \u2014 Dan Millman",
-        },
-        women: {
-            leftBg: "linear-gradient(155deg, #f8f0f4 0%, #f2e4ec 28%, #e8dce8 55%, #e2e0f0 80%, #f0eef8 100%)",
-            accent: "#c76d85",
-            accentSoft: "rgba(199,109,133,0.08)",
-            accentBorder: "rgba(199,109,133,0.16)",
-            accentGrad: "linear-gradient(135deg, #b5576f 0%, #d88a9e 100%)",
-            formBg: "#fffbfc",
-            formBorder: "rgba(199,109,133,0.07)",
-            inputBg: "rgba(199,109,133,0.03)",
-            inputBorder: "rgba(199,109,133,0.13)",
-            inputFocus: "rgba(199,109,133,0.18)",
-            text: "#3a2030",
-            textSoft: "rgba(58,32,48,0.48)",
-            textMuted: "rgba(58,32,48,0.22)",
-            socialHover: "rgba(199,109,133,0.05)",
-            tagline: "A gentle space for\nyour inner peace.",
-            subtitle: "Warmth \u00b7 Strength \u00b7 Serenity",
-            quote: "\u201cShe remembered who she was and the game changed.\u201d \u2014 Lalah Delia",
-        },
-    }[mode];
+        leftBg: "linear-gradient(155deg, #f8f0f4 0%, #f2e4ec 28%, #e8dce8 55%, #e2e0f0 80%, #f0eef8 100%)",
+        accent: "#c76d85",
+        accentSoft: "rgba(199,109,133,0.08)",
+        accentBorder: "rgba(199,109,133,0.16)",
+        accentGrad: "linear-gradient(135deg, #b5576f 0%, #d88a9e 100%)",
+        formBg: "#fffbfc",
+        formBorder: "rgba(199,109,133,0.07)",
+        inputBg: "rgba(199,109,133,0.03)",
+        inputBorder: "rgba(199,109,133,0.13)",
+        inputFocus: "rgba(199,109,133,0.18)",
+        text: "#3a2030",
+        textSoft: "rgba(58,32,48,0.48)",
+        textMuted: "rgba(58,32,48,0.22)",
+        socialHover: "rgba(199,109,133,0.05)",
+        tagline: "A gentle space for\nyour inner peace.",
+        subtitle: "Warmth \u00b7 Strength \u00b7 Serenity",
+        quote: "\u201cShe remembered who she was and the game changed.\u201d \u2014 Lalah Delia",
+        danger: "#d94f4f",
+    };
 
     return (
         <>
@@ -181,66 +188,51 @@ export default function AuthPage() {
                 }
             `}</style>
 
-            <div className="auth-root" style={{ "--auth-font": isDark ? "'DM Sans'" : "'Nunito'" } as React.CSSProperties}>
+            <div className="auth-root" style={{ "--auth-font": "'Nunito'" } as React.CSSProperties}>
                 {/* ═══ LEFT PANEL ═══ */}
-                <AnimatePresence mode="wait">
-                    <motion.div
-                        key={mode}
-                        className="al"
-                        style={{ background: t.leftBg }}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.6 }}
-                    >
-                        {isDark ? <Stars /> : <><Sakura /><Mtns /></>}
+                <motion.div
+                    className="al"
+                    style={{ background: t.leftBg }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.6 }}
+                >
+                    <Sakura /><Mtns />
 
-                        <div className="adeco" style={{ width: 320, height: 320, bottom: "6%", right: "-5%", borderColor: isDark ? "rgba(139,164,232,0.07)" : "rgba(199,109,133,0.08)" }} />
-                        <div className="adeco" style={{ width: 180, height: 180, top: "12%", left: "-3%", borderColor: isDark ? "rgba(139,164,232,0.05)" : "rgba(199,109,133,0.06)" }} />
+                    <div className="adeco" style={{ width: 320, height: 320, bottom: "6%", right: "-5%", borderColor: "rgba(199,109,133,0.08)" }} />
+                    <div className="adeco" style={{ width: 180, height: 180, top: "12%", left: "-3%", borderColor: "rgba(199,109,133,0.06)" }} />
 
                         {/* Logo */}
                         <div className="al-z">
                             <div className="alogo">
-                                <div className="alogo-m" style={{ background: isDark ? "rgba(139,164,232,0.13)" : "rgba(199,109,133,0.1)" }}>
+                                <div className="alogo-m" style={{ background: "rgba(199,109,133,0.1)" }}>
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill={isDark ? "#8ba4e8" : "#c76d85"} />
+                                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#c76d85" />
                                     </svg>
                                 </div>
-                                <span className="alogo-t" style={{ color: isDark ? "#e4eaf8" : "#3a2030" }}>Solace</span>
+                                <span className="alogo-t" style={{ color: "#3a2030" }}>Solace</span>
                             </div>
                         </div>
 
                         {/* Tagline */}
                         <div className="al-z" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                            <motion.h1 className="ahead" style={{ color: isDark ? "#e4eaf8" : "#3a2030" }} key={`h-${mode}`} initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55, delay: 0.12 }}>
+                            <motion.h1 className="ahead" style={{ color: "#3a2030" }} initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55, delay: 0.12 }}>
                                 {t.tagline}
                             </motion.h1>
-                            <motion.p className="asub" style={{ color: isDark ? "#e4eaf8" : "#3a2030" }} key={`s-${mode}`} initial={{ opacity: 0 }} animate={{ opacity: 0.45 }} transition={{ duration: 0.5, delay: 0.25 }}>
+                            <motion.p className="asub" style={{ color: "#3a2030" }} initial={{ opacity: 0 }} animate={{ opacity: 0.45 }} transition={{ duration: 0.5, delay: 0.25 }}>
                                 {t.subtitle}
                             </motion.p>
                         </div>
 
                         {/* Quote */}
                         <div className="al-z">
-                            <p className="aquote" style={{ color: isDark ? "#e4eaf8" : "#3a2030" }}>{t.quote}</p>
+                            <p className="aquote" style={{ color: "#3a2030" }}>{t.quote}</p>
                         </div>
                     </motion.div>
-                </AnimatePresence>
 
                 {/* ═══ RIGHT PANEL ═══ */}
                 <div className="ar" style={{ backgroundColor: t.formBg }}>
                     <div className="ar-inner">
-                        {/* Mode Toggle — only Student / Women */}
-                        <div className="atoggle" style={{ background: t.accentSoft }}>
-                            {(["student", "women"] as UserMode[]).map((m) => (
-                                <motion.button key={m} className="atoggle-btn" onClick={() => setMode(m)} style={{ color: mode === m ? "#fff" : t.textSoft }} whileTap={{ scale: 0.95 }}>
-                                    {mode === m && (
-                                        <motion.div layoutId="mpill" style={{ position: "absolute", inset: 0, borderRadius: 11, background: t.accentGrad, zIndex: -1 }} transition={{ type: "spring", stiffness: 480, damping: 32 }} />
-                                    )}
-                                    {m === "student" ? "Student" : "Women"}
-                                </motion.button>
-                            ))}
-                        </div>
 
                         <h2 className="atitle" style={{ color: t.text }}>
                             {authView === "login" ? "Welcome back" : "Create your space"}
@@ -262,7 +254,7 @@ export default function AuthPage() {
                         </div>
 
                         <AnimatePresence mode="wait">
-                            <motion.div key={`${authView}-${signupType}-${mode}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.22 }}>
+                            <motion.div key={`${authView}-${signupType}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.22 }}>
 
                                 {/* Signup Chips */}
                                 {authView === "signup" && (
@@ -304,7 +296,7 @@ export default function AuthPage() {
                                                 <span className="ainput-i">
                                                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M22 6l-10 7L2 6" /></svg>
                                                 </span>
-                                                <input id="a-email" className="ainput" type="email" placeholder={mode === "student" ? "you@university.edu" : "you@email.com"} value={email} onChange={(e) => setEmail(e.target.value)}
+                                                <input id="a-email" className="ainput" type="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)}
                                                     style={{ background: t.inputBg, borderColor: t.inputBorder, color: t.text }}
                                                     onFocus={(e) => { e.target.style.borderColor = t.accent; e.target.style.boxShadow = `0 0 0 3px ${t.inputFocus}`; }}
                                                     onBlur={(e) => { e.target.style.borderColor = t.inputBorder; e.target.style.boxShadow = "none"; }}
@@ -343,10 +335,17 @@ export default function AuthPage() {
                                         </motion.div>
                                     )}
 
+                                    {/* Error Message */}
+                                    {error && (
+                                        <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} style={{ color: t.danger, fontSize: 12, fontWeight: 600, marginBottom: 16, padding: "8px 12px", background: "rgba(239, 107, 107, 0.1)", borderRadius: 8, border: "1px solid rgba(239, 107, 107, 0.2)" }}>
+                                            {error}
+                                        </motion.div>
+                                    )}
+
                                     {/* Submit */}
-                                    <motion.button type="submit" className="asubmit" style={{ background: t.accentGrad, boxShadow: `0 4px 18px ${t.inputFocus}` }} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.985 }}>
-                                        {authView === "login" ? "Sign In" : signupType === "anonymous" ? "Join Anonymously" : "Create Account"}
-                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5l7 7-7 7" /></svg>
+                                    <motion.button type="submit" disabled={loading} className="asubmit" style={{ background: t.accentGrad, boxShadow: `0 4px 18px ${t.inputFocus}`, opacity: loading ? 0.7 : 1, cursor: loading ? "wait" : "pointer" }} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.985 }}>
+                                        {loading ? "Processing..." : authView === "login" ? "Sign In" : signupType === "anonymous" ? "Join Anonymously" : "Create Account"}
+                                        {!loading && <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5l7 7-7 7" /></svg>}
                                     </motion.button>
                                 </form>
 
@@ -359,7 +358,7 @@ export default function AuthPage() {
                                             <div className="adiv-line" style={{ background: t.formBorder }} />
                                         </div>
                                         <div className="asocials">
-                                            <button className="asocial" style={{ borderColor: t.inputBorder, color: t.text }} onMouseEnter={(e) => (e.currentTarget.style.background = t.socialHover)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                                            <button type="button" onClick={() => signInGoogle()} className="asocial" style={{ borderColor: t.inputBorder, color: t.text }} onMouseEnter={(e) => (e.currentTarget.style.background = t.socialHover)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
                                                 <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" /><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A11.96 11.96 0 001 12c0 1.94.46 3.77 1.18 5.42l3.66-2.84z" /><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
                                                 Google
                                             </button>
@@ -394,26 +393,6 @@ export default function AuthPage() {
 // ═══════════════════════════════════════════════════════════
 // Background decorations
 // ═══════════════════════════════════════════════════════════
-
-function Stars() {
-    const data = React.useMemo(() => Array.from({ length: 55 }, (_, i) => ({
-        i, x: Math.random() * 100, y: Math.random() * 100,
-        s: 1.2 + Math.random() * 2.2, d: Math.random() * 5, dur: 3 + Math.random() * 4,
-        c: Math.random() > 0.65 ? "#fde68a" : Math.random() > 0.4 ? "#a3b8e8" : "#d4ddf8",
-    })), []);
-    return (
-        <div className="sfield">
-            {data.map((s) => (
-                <motion.div key={s.i} className="sstar" style={{ left: `${s.x}%`, top: `${s.y}%`, width: s.s, height: s.s, background: s.c }}
-                    animate={{ opacity: [0.15, 0.7, 0.15], scale: [1, 1.5, 1] }}
-                    transition={{ duration: s.dur, repeat: Infinity, delay: s.d, ease: "easeInOut" }}
-                />
-            ))}
-            <div style={{ position: "absolute", top: "18%", left: "25%", width: 280, height: 280, borderRadius: "50%", background: "radial-gradient(circle, rgba(74,110,201,0.1) 0%, transparent 70%)", filter: "blur(55px)" }} />
-            <div style={{ position: "absolute", bottom: "12%", right: "15%", width: 220, height: 220, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,164,232,0.08) 0%, transparent 70%)", filter: "blur(45px)" }} />
-        </div>
-    );
-}
 
 function Sakura() {
     const data = React.useMemo(() => Array.from({ length: 14 }, (_, i) => ({

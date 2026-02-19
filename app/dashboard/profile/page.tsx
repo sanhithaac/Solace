@@ -1,42 +1,24 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 
 const badges = [
-    { id: 1, emoji: "🌟", name: "First Steps", desc: "Created your account", earned: true },
-    { id: 2, emoji: "📝", name: "Storyteller", desc: "Wrote 10 journal entries", earned: true },
-    { id: 3, emoji: "🔥", name: "On Fire", desc: "7-day login streak", earned: true },
-    { id: 4, emoji: "🧘", name: "Zen Master", desc: "Completed 20 wellness exercises", earned: true },
-    { id: 5, emoji: "🎯", name: "Focused", desc: "10 pomodoro sessions", earned: true },
-    { id: 6, emoji: "💙", name: "Supporter", desc: "Gave 50 hearts on anonymous posts", earned: false },
-    { id: 7, emoji: "📚", name: "Bookworm", desc: "Read 5 recommended books", earned: false },
-    { id: 8, emoji: "🏆", name: "Champion", desc: "Reached Level 10", earned: false },
-    { id: 9, emoji: "🌈", name: "Mood Master", desc: "Logged mood for 30 consecutive days", earned: false },
-    { id: 10, emoji: "🤝", name: "Community Leader", desc: "Joined 5 communities", earned: false },
-    { id: 11, emoji: "💪", name: "Resilient", desc: "Completed 30-day challenge", earned: false },
-    { id: 12, emoji: "🎓", name: "Scholar", desc: "Completed all daily challenges for a month", earned: false },
+    { id: 1, emoji: "🌟", name: "First Steps", desc: "Created your account", check: (s: any) => true },
+    { id: 2, emoji: "📝", name: "Storyteller", desc: "Wrote 10 journal entries", check: (s: any) => s.journalEntries >= 10 },
+    { id: 3, emoji: "🔥", name: "On Fire", desc: "7-day login streak", check: (s: any) => s.moodLogs >= 7 },
+    { id: 4, emoji: "🧘", name: "Zen Master", desc: "Completed 20 wellness exercises", check: (s: any) => false },
+    { id: 5, emoji: "🎯", name: "Focused", desc: "10 pomodoro sessions", check: (s: any) => s.pomodoroSessions >= 10 },
+    { id: 6, emoji: "💙", name: "Supporter", desc: "Gave 50 hearts on anonymous posts", check: (s: any) => false },
+    { id: 7, emoji: "📚", name: "Bookworm", desc: "Read 5 recommended books", check: (s: any) => false },
+    { id: 8, emoji: "🏆", name: "Champion", desc: "Reached Level 10", check: (s: any) => s.level >= 10 },
+    { id: 9, emoji: "🌈", name: "Mood Master", desc: "Logged mood for 30 days", check: (s: any) => s.moodLogs >= 30 },
+    { id: 10, emoji: "🤝", name: "Community Leader", desc: "Joined 5 communities", check: (s: any) => false },
+    { id: 11, emoji: "💪", name: "Resilient", desc: "Completed 30-day challenge", check: (s: any) => false },
+    { id: 12, emoji: "🎓", name: "Scholar", desc: "Completed all daily challenges for a month", check: (s: any) => false },
 ];
-
-const activityLog = [
-    { action: "Wrote journal entry", xp: 15, time: "2h ago", icon: "📝" },
-    { action: "Completed pomodoro session", xp: 10, time: "4h ago", icon: "⏱️" },
-    { action: "Logged daily mood", xp: 10, time: "6h ago", icon: "😊" },
-    { action: "Joined a community", xp: 20, time: "1d ago", icon: "🤝" },
-    { action: "Completed breathing exercise", xp: 10, time: "1d ago", icon: "🫁" },
-    { action: "Posted anonymously", xp: 5, time: "2d ago", icon: "🕊️" },
-    { action: "Completed daily challenge", xp: 20, time: "2d ago", icon: "🎯" },
-];
-
-const levelData = {
-    current: 7,
-    xp: 320,
-    nextLevelXp: 500,
-    totalXp: 1820,
-    title: "Mindful Explorer",
-    nextTitle: "Wellness Warrior",
-};
 
 const levels = [
     { level: 1, title: "Newcomer", xp: 0 },
@@ -49,8 +31,38 @@ const levels = [
 ];
 
 export default function ProfilePage() {
-    const { t, isDark } = useTheme();
-    const progress = (levelData.xp / levelData.nextLevelXp) * 100;
+    const { t } = useTheme();
+    const { user, logout } = useAuth();
+    const [profile, setProfile] = useState<any>(null);
+    const [stats, setStats] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!user) return;
+        const fetchProfile = async () => {
+            try {
+                const res = await fetch(`/api/profile?uid=${user.uid}`);
+                const data = await res.json();
+                if (data.user) setProfile(data.user);
+                if (data.stats) setStats(data.stats);
+            } catch (err) {
+                console.error("Profile fetch error:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchProfile();
+    }, [user]);
+
+    if (loading || !profile) {
+        return <p style={{ color: t.textSoft, textAlign: "center", padding: 60 }}>Loading profile...</p>;
+    }
+
+    const progress = (profile.xpInLevel / profile.xpForNext) * 100;
+    const earnedBadges = badges.map((b) => ({
+        ...b,
+        earned: b.check({ ...stats, level: profile.level }),
+    }));
 
     return (
         <>
@@ -69,25 +81,25 @@ export default function ProfilePage() {
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 36, border: "3px solid rgba(255,255,255,0.25)",
                     }}>
-                        👤
+                        {profile.photoURL ? <img src={profile.photoURL} alt="" style={{ width: "100%", height: "100%", borderRadius: 20, objectFit: "cover" }} /> : "👤"}
                     </div>
                     <div style={{ flex: 1 }}>
-                        <h1 style={{ fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em", marginBottom: 2 }}>Anonymous User</h1>
-                        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", fontWeight: 500 }}>🏅 {levelData.title}</p>
+                        <h1 style={{ fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em", marginBottom: 2 }}>{profile.displayName}</h1>
+                        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", fontWeight: 500 }}>🏅 {profile.title}</p>
                         <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 10 }}>
                             <div>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Level</div>
-                                <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{levelData.current}</div>
+                                <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{profile.level}</div>
                             </div>
                             <div style={{ width: 1, height: 30, background: "rgba(255,255,255,0.15)" }} />
                             <div>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Total XP</div>
-                                <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{levelData.totalXp.toLocaleString()}</div>
+                                <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{profile.xp.toLocaleString()}</div>
                             </div>
                             <div style={{ width: 1, height: 30, background: "rgba(255,255,255,0.15)" }} />
                             <div>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Badges</div>
-                                <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{badges.filter((b) => b.earned).length}/{badges.length}</div>
+                                <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{earnedBadges.filter((b) => b.earned).length}/{earnedBadges.length}</div>
                             </div>
                         </div>
                     </div>
@@ -96,8 +108,8 @@ export default function ProfilePage() {
                 {/* XP Progress */}
                 <div style={{ position: "relative", zIndex: 2, marginTop: 18 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.6)" }}>{levelData.xp} / {levelData.nextLevelXp} XP</span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.6)" }}>Next: {levelData.nextTitle}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.6)" }}>{profile.xpInLevel} / {profile.xpForNext} XP</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.6)" }}>Level {profile.level}</span>
                     </div>
                     <div style={{ height: 8, borderRadius: 4, background: "rgba(255,255,255,0.12)", overflow: "hidden" }}>
                         <motion.div
@@ -115,7 +127,7 @@ export default function ProfilePage() {
                 <div style={{ padding: 22, borderRadius: 16, background: t.cardBg, border: `1px solid ${t.cardBorder}` }}>
                     <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 16 }}>🏆 Badges</h3>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
-                        {badges.map((badge, i) => (
+                        {earnedBadges.map((badge, i) => (
                             <motion.div
                                 key={badge.id}
                                 initial={{ opacity: 0, scale: 0.9 }}
@@ -141,13 +153,18 @@ export default function ProfilePage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
                     {/* Recent XP Activity */}
                     <div style={{ padding: 22, borderRadius: 16, background: t.cardBg, border: `1px solid ${t.cardBorder}` }}>
-                        <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 14 }}>⚡ XP Activity</h3>
+                        <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 14 }}>⚡ Stats Summary</h3>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            {activityLog.map((a, i) => (
+                            {[
+                                { action: `${stats.journalEntries} journal entries`, xp: stats.journalEntries * 50, time: "All time", icon: "📝" },
+                                { action: `${stats.moodLogs} mood logs`, xp: stats.moodLogs * 20, time: "All time", icon: "😊" },
+                                { action: `${stats.todosDone}/${stats.todosTotal} tasks completed`, xp: stats.todosDone * 10, time: "All time", icon: "✅" },
+                                { action: `${stats.pomodoroSessions} pomodoro sessions`, xp: stats.pomodoroSessions * 20, time: "All time", icon: "⏱️" },
+                            ].map((a, i) => (
                                 <div key={i} style={{
                                     display: "flex", alignItems: "center", gap: 10,
                                     padding: "8px 0",
-                                    borderBottom: i < activityLog.length - 1 ? `1px solid ${t.divider}` : "none",
+                                    borderBottom: i < 3 ? `1px solid ${t.divider}` : "none",
                                 }}>
                                     <span style={{ fontSize: 16 }}>{a.icon}</span>
                                     <div style={{ flex: 1 }}>
@@ -165,7 +182,7 @@ export default function ProfilePage() {
                         <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 14 }}>🗺️ Level Roadmap</h3>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                             {levels.map((lv, i) => {
-                                const reached = levelData.current >= lv.level;
+                                const reached = profile.level >= lv.level;
                                 return (
                                     <div key={lv.level} style={{
                                         display: "flex", alignItems: "center", gap: 10,
@@ -195,6 +212,21 @@ export default function ProfilePage() {
                     </div>
                 </div>
             </div>
+
+            {/* Logout Button */}
+            <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={logout}
+                style={{
+                    marginTop: 24, padding: "14px 28px", borderRadius: 12, border: `1.5px solid ${t.danger}`,
+                    background: "transparent", color: t.danger, fontSize: 14, fontWeight: 700,
+                    cursor: "pointer", fontFamily: "inherit", width: "100%",
+                    transition: "all 0.2s",
+                }}
+            >
+                Sign Out
+            </motion.button>
         </>
     );
 }

@@ -33,10 +33,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const router = useRouter();
 
     useEffect(() => {
+        const syncUserWithMongo = async (currentUser: User) => {
+            try {
+                await fetch("/api/auth/sync", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        uid: currentUser.uid,
+                        email: currentUser.email,
+                        displayName: currentUser.displayName,
+                        photoURL: currentUser.photoURL,
+                    }),
+                });
+            } catch (err) {
+                console.error("Failed to sync user with MongoDB:", err);
+            }
+        };
+
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             setLoading(false);
-            if (!currentUser && window.location.pathname.startsWith('/dashboard')) {
+
+            if (currentUser) {
+                syncUserWithMongo(currentUser);
+            }
+
+            if (!currentUser && typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard')) {
                 router.push("/auth");
             }
         });

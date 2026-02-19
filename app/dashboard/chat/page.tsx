@@ -3,17 +3,14 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 
 interface Message {
-    id: number;
+    id?: string;
     role: "user" | "ai";
     text: string;
-    time: string;
+    timestamp?: string;
 }
-
-const initialMessages: Message[] = [
-    { id: 1, role: "ai", text: "Hi there 💙 I'm your mental health companion. I'm here to listen, support, and guide you. How are you feeling today?", time: "Just now" },
-];
 
 const quickPrompts = [
     "I'm feeling anxious today",
@@ -25,40 +22,57 @@ const quickPrompts = [
 ];
 
 export default function ChatPage() {
-    const { t, isDark } = useTheme();
-    const [messages, setMessages] = useState<Message[]>(initialMessages);
+    const { t } = useTheme();
+    const { user } = useAuth();
+    const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Initial Load: Fetch history from MongoDB
+    useEffect(() => {
+        if (!user) return;
+        const fetchHistory = async () => {
+            try {
+                const res = await fetch(`/api/chat?uid=${user.uid}`);
+                const data = await res.json();
+                if (data.messages) {
+                    setMessages(data.messages);
+                }
+            } catch (err) {
+                console.error("Failed to load chat history:", err);
+            }
+        };
+        fetchHistory();
+    }, [user]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    const sendMessage = (text: string) => {
-        if (!text.trim()) return;
-        const userMsg: Message = { id: Date.now(), role: "user", text, time: "Now" };
+    const sendMessage = async (text: string) => {
+        if (!text.trim() || !user) return;
+
+        const userMsg: Message = { role: "user", text, timestamp: new Date().toISOString() };
         setMessages((prev) => [...prev, userMsg]);
         setInput("");
         setIsTyping(true);
 
-        // Simulate AI response
-        setTimeout(() => {
-            const aiResponses = [
-                "I hear you, and your feelings are completely valid. Let's take a moment to breathe together. Would you like to try a quick grounding exercise?",
-                "That sounds like a lot to carry. Remember, it's okay to not be okay. Would you like me to suggest some coping strategies?",
-                "Thank you for sharing that with me. Your honesty takes courage. Let's explore what might help you feel better.",
-                "I understand how that can feel overwhelming. One thing that might help is breaking things down into smaller, manageable steps. Want to try?",
-            ];
-            const aiMsg: Message = {
-                id: Date.now() + 1,
-                role: "ai",
-                text: aiResponses[Math.floor(Math.random() * aiResponses.length)],
-                time: "Now",
-            };
-            setMessages((prev) => [...prev, aiMsg]);
+        try {
+            const res = await fetch("/api/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ uid: user.uid, text }),
+            });
+            const data = await res.json();
+            if (data.aiMessage) {
+                setMessages((prev) => [...prev, data.aiMessage]);
+            }
+        } catch (err) {
+            console.error("Chat Error:", err);
+        } finally {
             setIsTyping(false);
-        }, 1500);
+        }
     };
 
     return (
@@ -73,9 +87,9 @@ export default function ChatPage() {
                 flex: 1, overflowY: "auto", padding: "16px 0",
                 display: "flex", flexDirection: "column", gap: 14,
             }}>
-                {messages.map((msg) => (
+                {messages.map((msg, idx) => (
                     <motion.div
-                        key={msg.id}
+                        key={msg.id || idx}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         style={{
@@ -92,7 +106,9 @@ export default function ChatPage() {
                             borderBottomLeftRadius: msg.role === "ai" ? 4 : 16,
                         }}>
                             <p style={{ fontSize: 13.5, lineHeight: 1.65, fontWeight: 500, margin: 0 }}>{msg.text}</p>
-                            <span style={{ fontSize: 10, opacity: 0.5, fontWeight: 500, marginTop: 6, display: "block" }}>{msg.time}</span>
+                            <span style={{ fontSize: 10, opacity: 0.5, fontWeight: 500, marginTop: 6, display: "block" }}>
+                                {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Now"}
+                            </span>
                         </div>
                     </motion.div>
                 ))}

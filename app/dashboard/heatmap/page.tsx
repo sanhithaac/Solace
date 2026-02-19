@@ -1,54 +1,73 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
-
-function generateHeatmapData() {
-    const data: { date: string; level: number; mood: string }[] = [];
-    const moods = ["😄", "😊", "😐", "😔", "😢"];
-    const now = new Date();
-    for (let i = 364; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - i);
-        const level = Math.floor(Math.random() * 5);
-        data.push({
-            date: d.toISOString().split("T")[0],
-            level,
-            mood: moods[4 - level] || "😐",
-        });
-    }
-    return data;
-}
+import { useAuth } from "@/context/AuthContext";
 
 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function HeatmapPage() {
-    const { t, isDark } = useTheme();
-    const data = useMemo(generateHeatmapData, []);
+    const { t } = useTheme();
+    const { user } = useAuth();
+    const [data, setData] = useState<{ date: string; level: number; mood: string }[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const colors = isDark
-        ? ["rgba(139,164,232,0.05)", "rgba(139,164,232,0.15)", "rgba(139,164,232,0.3)", "rgba(139,164,232,0.55)", "rgba(139,164,232,0.85)"]
-        : ["rgba(199,109,133,0.05)", "rgba(199,109,133,0.12)", "rgba(199,109,133,0.25)", "rgba(199,109,133,0.45)", "rgba(199,109,133,0.75)"];
+    useEffect(() => {
+        if (!user) return;
+        const fetchHeatmap = async () => {
+            try {
+                const res = await fetch(`/api/heatmap?uid=${user.uid}`);
+                const json = await res.json();
+                if (json.data) setData(json.data);
+            } catch (err) {
+                console.error("Heatmap fetch error:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchHeatmap();
+    }, [user]);
+
+    const colors = ["rgba(199,109,133,0.05)", "rgba(199,109,133,0.12)", "rgba(199,109,133,0.25)", "rgba(199,109,133,0.45)", "rgba(199,109,133,0.75)"];
 
     // Organize into weeks
     const weeks: typeof data[] = [];
     let currentWeek: typeof data = [];
-    const firstDay = new Date(data[0].date).getDay();
-    for (let i = 0; i < firstDay; i++) currentWeek.push({ date: "", level: -1, mood: "" });
-    for (const d of data) {
-        currentWeek.push(d);
-        if (currentWeek.length === 7) {
-            weeks.push(currentWeek);
-            currentWeek = [];
+    if (data.length > 0) {
+        const firstDay = new Date(data[0].date).getDay();
+        for (let i = 0; i < firstDay; i++) currentWeek.push({ date: "", level: -1, mood: "" });
+        for (const d of data) {
+            currentWeek.push(d);
+            if (currentWeek.length === 7) {
+                weeks.push(currentWeek);
+                currentWeek = [];
+            }
         }
+        if (currentWeek.length > 0) weeks.push(currentWeek);
     }
-    if (currentWeek.length > 0) weeks.push(currentWeek);
 
     // Stats
-    const avgMood = (data.reduce((s, d) => s + d.level, 0) / data.length).toFixed(1);
-    const bestStreak = 12;
-    const totalLogged = data.filter((d) => d.level > 0).length;
+    const loggedDays = data.filter((d) => d.level >= 0);
+    const avgMood = loggedDays.length > 0 ? (loggedDays.reduce((s, d) => s + d.level, 0) / loggedDays.length).toFixed(1) : "0";
+    const totalLogged = loggedDays.length;
+
+    // Calculate best streak
+    let bestStreak = 0, currentStreak = 0;
+    for (const d of data) {
+        if (d.level >= 0) { currentStreak++; bestStreak = Math.max(bestStreak, currentStreak); }
+        else { currentStreak = 0; }
+    }
+
+    // This month logged
+    const now = new Date();
+    const thisMonthLogged = data.filter((d) => {
+        if (d.level < 0) return false;
+        const dd = new Date(d.date);
+        return dd.getMonth() === now.getMonth() && dd.getFullYear() === now.getFullYear();
+    }).length;
+
+    if (loading) return <p style={{ textAlign: "center", color: t.textSoft, padding: 60 }}>Loading heatmap...</p>;
 
     return (
         <>
@@ -63,7 +82,7 @@ export default function HeatmapPage() {
                     { label: "Days Logged", value: totalLogged.toString(), icon: "📊" },
                     { label: "Avg Mood", value: `${avgMood}/4`, icon: "😊" },
                     { label: "Best Streak", value: `${bestStreak} days`, icon: "🔥" },
-                    { label: "This Month", value: "23 days", icon: "📅" },
+                    { label: "This Month", value: `${thisMonthLogged} days`, icon: "📅" },
                 ].map((s) => (
                     <div key={s.label} style={{
                         flex: 1, padding: "16px 18px", borderRadius: 12, background: t.cardBg,

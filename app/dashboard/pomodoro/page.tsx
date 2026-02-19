@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 
 type TimerState = "idle" | "focus" | "break";
 
@@ -14,11 +15,14 @@ const presets = [
 
 export default function PomodoroPage() {
     const { t } = useTheme();
+    const { user } = useAuth();
     const [preset, setPreset] = useState(presets[0]);
     const [state, setState] = useState<TimerState>("idle");
     const [timeLeft, setTimeLeft] = useState(25 * 60);
     const [sessions, setSessions] = useState(0);
     const [totalFocus, setTotalFocus] = useState(0);
+    const [totalSessions, setTotalSessions] = useState(0);
+    const [totalMinutes, setTotalMinutes] = useState(0);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const totalTime = state === "focus" ? preset.focus * 60 : preset.break * 60;
@@ -43,6 +47,40 @@ export default function PomodoroPage() {
         setTimeLeft(preset.focus * 60);
     }, [preset]);
 
+    // Load stats from backend
+    useEffect(() => {
+        if (!user) return;
+        const fetchStats = async () => {
+            try {
+                const res = await fetch(`/api/pomodoro?uid=${user.uid}`);
+                const data = await res.json();
+                if (data.stats) {
+                    setSessions(data.stats.todayCount);
+                    setTotalFocus(data.stats.todayMinutes);
+                    setTotalSessions(data.stats.totalSessions);
+                    setTotalMinutes(data.stats.totalMinutes);
+                }
+            } catch (err) {
+                console.error("Pomodoro stats error:", err);
+            }
+        };
+        fetchStats();
+    }, [user]);
+
+    // Save completed session to backend
+    const saveSession = useCallback(async (duration: number) => {
+        if (!user) return;
+        try {
+            await fetch("/api/pomodoro", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ uid: user.uid, duration, type: "focus" }),
+            });
+        } catch (err) {
+            console.error("Save pomodoro error:", err);
+        }
+    }, [user]);
+
     useEffect(() => {
         if (state === "idle") return;
 
@@ -52,6 +90,9 @@ export default function PomodoroPage() {
                     if (state === "focus") {
                         setSessions((s) => s + 1);
                         setTotalFocus((f) => f + preset.focus);
+                        setTotalSessions((s) => s + 1);
+                        setTotalMinutes((m) => m + preset.focus);
+                        saveSession(preset.focus);
                         startBreak();
                     } else {
                         startFocus();
@@ -162,9 +203,9 @@ export default function PomodoroPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     {[
                         { label: "Sessions Today", value: sessions.toString(), icon: "🎯" },
-                        { label: "Focus Time", value: `${totalFocus}m`, icon: "⏱️" },
-                        { label: "Current Streak", value: "5 days", icon: "🔥" },
-                        { label: "Best Streak", value: "12 days", icon: "🏆" },
+                        { label: "Focus Today", value: `${totalFocus}m`, icon: "⏱️" },
+                        { label: "All-time Sessions", value: totalSessions.toString(), icon: "🏆" },
+                        { label: "All-time Focus", value: `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`, icon: "🔥" },
                     ].map((stat) => (
                         <div key={stat.label} style={{
                             padding: "18px 16px", borderRadius: 14, background: t.cardBg,

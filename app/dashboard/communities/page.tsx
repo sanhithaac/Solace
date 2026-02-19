@@ -1,30 +1,99 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 
-const communities = [
-    { id: 1, name: "Study Buddies", desc: "Find study partners and share academic resources", members: 1240, emoji: "📚", category: "Academic", joined: true, active: 23, color: "#4a6ec9" },
-    { id: 2, name: "Anxiety Support", desc: "A safe space to discuss and manage anxiety together", members: 890, emoji: "🫂", category: "Support", joined: true, active: 45, color: "#b5576f" },
-    { id: 3, name: "Mindful Women", desc: "Women supporting women through mindfulness practices", members: 560, emoji: "🌸", category: "Women", joined: false, active: 18, color: "#d88a9e" },
-    { id: 4, name: "Fitness & Wellness", desc: "Share workout routines and healthy lifestyle tips", members: 2100, emoji: "💪", category: "Wellness", joined: false, active: 67, color: "#4caf7c" },
-    { id: 5, name: "Creative Expression", desc: "Art, music, and writing as therapy", members: 430, emoji: "🎨", category: "Creative", joined: false, active: 12, color: "#e8a830" },
-    { id: 6, name: "Night Owls", desc: "For those who need late-night company and conversation", members: 780, emoji: "🦉", category: "Social", joined: true, active: 34, color: "#8ba4e8" },
-    { id: 7, name: "Career Anxiety", desc: "Discussing job search stress and career worries", members: 650, emoji: "💼", category: "Support", joined: false, active: 28, color: "#f0c35a" },
-    { id: 8, name: "Book Club", desc: "Monthly mental health and self-help book discussions", members: 320, emoji: "📖", category: "Creative", joined: false, active: 8, color: "#6bdb8e" },
+interface CommunityItem {
+    _id: string;
+    name: string;
+    description: string;
+    category: string;
+    icon: string;
+    memberCount: number;
+    joined: boolean;
+}
+
+// Default seed communities (will be created on first visit if DB is empty)
+const seedCommunities = [
+    { name: "Study Buddies", description: "Find study partners and share academic resources", category: "Academic", icon: "📚" },
+    { name: "Anxiety Support", description: "A safe space to discuss and manage anxiety together", category: "Support", icon: "🫂" },
+    { name: "Mindful Women", description: "Women supporting women through mindfulness practices", category: "Women", icon: "🌸" },
+    { name: "Fitness & Wellness", description: "Share workout routines and healthy lifestyle tips", category: "Wellness", icon: "💪" },
+    { name: "Creative Expression", description: "Art, music, and writing as therapy", category: "Creative", icon: "🎨" },
+    { name: "Night Owls", description: "For those who need late-night company and conversation", category: "Social", icon: "🦉" },
 ];
+
+const categoryColors: Record<string, string> = {
+    Academic: "#4a6ec9", Support: "#b5576f", Women: "#d88a9e",
+    Wellness: "#4caf7c", Creative: "#e8a830", Social: "#8ba4e8", General: "#9e9e9e",
+};
 
 export default function CommunitiesPage() {
     const { t } = useTheme();
-    const [items, setItems] = useState(communities);
+    const { user } = useAuth();
+    const [items, setItems] = useState<CommunityItem[]>([]);
     const [filter, setFilter] = useState("All");
+    const [loading, setLoading] = useState(true);
 
-    const toggleJoin = (id: number) => {
-        setItems(items.map((c) => c.id === id ? { ...c, joined: !c.joined, members: c.joined ? c.members - 1 : c.members + 1 } : c));
+    useEffect(() => {
+        if (!user) return;
+        const fetchCommunities = async () => {
+            try {
+                const res = await fetch(`/api/communities?uid=${user.uid}`);
+                const data = await res.json();
+                if (data.communities && data.communities.length > 0) {
+                    setItems(data.communities);
+                } else {
+                    // Seed communities if empty
+                    for (const seed of seedCommunities) {
+                        await fetch("/api/communities", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ uid: user.uid, ...seed }),
+                        });
+                    }
+                    // Re-fetch
+                    const res2 = await fetch(`/api/communities?uid=${user.uid}`);
+                    const data2 = await res2.json();
+                    if (data2.communities) setItems(data2.communities);
+                }
+            } catch (err) {
+                console.error("Communities fetch error:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchCommunities();
+    }, [user]);
+
+    const toggleJoin = async (communityId: string, currentlyJoined: boolean) => {
+        if (!user) return;
+        try {
+            const res = await fetch("/api/communities", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    communityId,
+                    uid: user.uid,
+                    action: currentlyJoined ? "leave" : "join",
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setItems(items.map((c) =>
+                    c._id === communityId
+                        ? { ...c, joined: data.joined, memberCount: data.memberCount }
+                        : c
+                ));
+            }
+        } catch (err) {
+            console.error("Toggle join error:", err);
+        }
     };
 
-    const cats = ["All", ...Array.from(new Set(communities.map((c) => c.category)))];
+    const cats = ["All", ...Array.from(new Set(items.map((c) => c.category)))];
     const filtered = filter === "All" ? items : items.filter((c) => c.category === filter);
 
     return (
@@ -39,7 +108,6 @@ export default function CommunitiesPage() {
                 {[
                     { label: "Joined", value: items.filter((c) => c.joined).length, icon: "🏠" },
                     { label: "Available", value: items.length, icon: "🌐" },
-                    { label: "Active Now", value: items.reduce((a, c) => a + c.active, 0), icon: "🟢" },
                 ].map((s) => (
                     <div key={s.label} style={{ padding: "14px 18px", borderRadius: 12, background: t.cardBg, border: `1px solid ${t.cardBorder}`, display: "flex", alignItems: "center", gap: 10 }}>
                         <span style={{ fontSize: 20 }}>{s.icon}</span>
@@ -67,9 +135,13 @@ export default function CommunitiesPage() {
 
             {/* Community Cards */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
-                {filtered.map((com, i) => (
+                {loading ? (
+                    <p style={{ color: t.textSoft, textAlign: "center", padding: 30, gridColumn: "1 / -1" }}>Loading communities...</p>
+                ) : filtered.map((com, i) => {
+                    const color = categoryColors[com.category] || "#8ba4e8";
+                    return (
                     <motion.div
-                        key={com.id}
+                        key={com._id}
                         initial={{ opacity: 0, y: 12 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.05 }}
@@ -81,28 +153,27 @@ export default function CommunitiesPage() {
                     >
                         <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
                             <div style={{
-                                width: 48, height: 48, borderRadius: 12, background: `${com.color}15`,
+                                width: 48, height: 48, borderRadius: 12, background: `${color}15`,
                                 display: "flex", alignItems: "center", justifyContent: "center",
                                 fontSize: 24, flexShrink: 0,
                             }}>
-                                {com.emoji}
+                                {com.icon}
                             </div>
                             <div style={{ flex: 1 }}>
                                 <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 2 }}>{com.name}</h3>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: com.color, background: `${com.color}12`, padding: "2px 8px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>{com.category}</span>
+                                <span style={{ fontSize: 10, fontWeight: 700, color, background: `${color}12`, padding: "2px 8px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>{com.category}</span>
                             </div>
                         </div>
 
-                        <p style={{ fontSize: 12.5, color: t.textSoft, lineHeight: 1.55, marginBottom: 14, fontWeight: 500 }}>{com.desc}</p>
+                        <p style={{ fontSize: 12.5, color: t.textSoft, lineHeight: 1.55, marginBottom: 14, fontWeight: 500 }}>{com.description}</p>
 
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <div style={{ display: "flex", gap: 12, fontSize: 11, color: t.textMuted, fontWeight: 600 }}>
-                                <span>👥 {com.members.toLocaleString()}</span>
-                                <span>🟢 {com.active} active</span>
+                                <span>👥 {com.memberCount.toLocaleString()}</span>
                             </div>
                             <motion.button
                                 whileTap={{ scale: 0.95 }}
-                                onClick={() => toggleJoin(com.id)}
+                                onClick={() => toggleJoin(com._id, com.joined)}
                                 style={{
                                     padding: "8px 18px", borderRadius: 8, border: com.joined ? `1px solid ${t.accentBorder}` : "none",
                                     background: com.joined ? "transparent" : t.accentGrad,
@@ -114,7 +185,8 @@ export default function CommunitiesPage() {
                             </motion.button>
                         </div>
                     </motion.div>
-                ))}
+                    );
+                })}
             </div>
         </>
     );

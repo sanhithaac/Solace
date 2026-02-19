@@ -1,53 +1,99 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, Reorder } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 
 interface Todo {
-    id: number;
+    _id: string;
     text: string;
-    done: boolean;
-    priority: "high" | "medium" | "low";
-    due?: string;
-    category: string;
+    completed: boolean;
+    priority: "High" | "Medium" | "Low";
+    createdAt: string;
 }
 
-const initialTodos: Todo[] = [
-    { id: 1, text: "Complete Data Structures assignment", done: false, priority: "high", due: "Today", category: "Study" },
-    { id: 2, text: "30-minute yoga session", done: true, priority: "medium", due: "Today", category: "Wellness" },
-    { id: 3, text: "Write journal entry", done: false, priority: "medium", due: "Today", category: "Self-Care" },
-    { id: 4, text: "Read 20 pages of Atomic Habits", done: false, priority: "low", due: "Tomorrow", category: "Reading" },
-    { id: 5, text: "Attend therapy session", done: false, priority: "high", due: "Wed", category: "Health" },
-    { id: 6, text: "Call mom", done: true, priority: "medium", due: "Today", category: "Personal" },
-    { id: 7, text: "Review math notes for midterm", done: false, priority: "high", due: "Thu", category: "Study" },
-];
-
 const priorityConfig = {
-    high: { color: "#ef6b6b", label: "HIGH" },
-    medium: { color: "#f0c35a", label: "MED" },
-    low: { color: "#6bdb8e", label: "LOW" },
+    High: { color: "#ef6b6b", label: "HIGH" },
+    Medium: { color: "#f0c35a", label: "MED" },
+    Low: { color: "#6bdb8e", label: "LOW" },
 };
 
 export default function TodosPage() {
     const { t } = useTheme();
-    const [todos, setTodos] = useState<Todo[]>(initialTodos);
+    const { user } = useAuth();
+    const [todos, setTodos] = useState<Todo[]>([]);
     const [newTodo, setNewTodo] = useState("");
     const [filter, setFilter] = useState("all");
+    const [loading, setLoading] = useState(true);
 
-    const toggleTodo = (id: number) => {
-        setTodos(todos.map((td) => td.id === id ? { ...td, done: !td.done } : td));
+    // Fetch todos
+    useEffect(() => {
+        if (!user) return;
+        const fetchTodos = async () => {
+            try {
+                const res = await fetch(`/api/todos?uid=${user.uid}`);
+                const data = await res.json();
+                if (data.todos) setTodos(data.todos);
+            } catch (err) {
+                console.error("Fetch todos error:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchTodos();
+    }, [user]);
+
+    const toggleTodo = async (id: string, currentStatus: boolean) => {
+        try {
+            const res = await fetch("/api/todos", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id, completed: !currentStatus, uid: user?.uid }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setTodos(todos.map((td) => td._id === id ? { ...td, completed: !currentStatus } : td));
+            }
+        } catch (err) {
+            console.error("Toggle error:", err);
+        }
     };
 
-    const addTodo = () => {
-        if (!newTodo.trim()) return;
-        setTodos([{ id: Date.now(), text: newTodo, done: false, priority: "medium", due: "Today", category: "General" }, ...todos]);
-        setNewTodo("");
+    const addTodo = async () => {
+        if (!newTodo.trim() || !user) return;
+        try {
+            const res = await fetch("/api/todos", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ uid: user.uid, text: newTodo, priority: "Medium" }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setTodos([data.todo, ...todos]);
+                setNewTodo("");
+            }
+        } catch (err) {
+            console.error("Add error:", err);
+        }
     };
 
-    const filtered = filter === "all" ? todos : filter === "done" ? todos.filter((td) => td.done) : todos.filter((td) => !td.done);
-    const doneCount = todos.filter((td) => td.done).length;
-    const progress = Math.round((doneCount / todos.length) * 100);
+    const deleteTodo = async (id: string) => {
+        try {
+            await fetch("/api/todos", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id }),
+            });
+            setTodos(todos.filter(t => t._id !== id));
+        } catch (err) {
+            console.error("Delete error:", err);
+        }
+    };
+
+    const filtered = filter === "all" ? todos : filter === "done" ? todos.filter((td) => td.completed) : todos.filter((td) => !td.completed);
+    const doneCount = todos.filter((td) => td.completed).length;
+    const progress = todos.length > 0 ? Math.round((doneCount / todos.length) * 100) : 0;
 
     return (
         <>
@@ -112,7 +158,7 @@ export default function TodosPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {filtered.map((todo, i) => (
                     <motion.div
-                        key={todo.id}
+                        key={todo._id}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.04 }}
@@ -121,28 +167,27 @@ export default function TodosPage() {
                             display: "flex", alignItems: "center", gap: 12,
                             padding: "14px 16px", borderRadius: 12,
                             background: t.cardBg, border: `1px solid ${t.cardBorder}`,
-                            opacity: todo.done ? 0.55 : 1,
+                            opacity: todo.completed ? 0.55 : 1,
                             transition: "all 0.25s",
                         }}
                     >
                         <motion.button
                             whileTap={{ scale: 0.85 }}
-                            onClick={() => toggleTodo(todo.id)}
+                            onClick={() => toggleTodo(todo._id, todo.completed)}
                             style={{
                                 width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-                                border: `2px solid ${todo.done ? t.accent : t.textMuted}`,
-                                background: todo.done ? t.accent : "transparent",
+                                border: `2px solid ${todo.completed ? t.accent : t.textMuted}`,
+                                background: todo.completed ? t.accent : "transparent",
                                 cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
                             }}
                         >
-                            {todo.done && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                            {todo.completed && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>}
                         </motion.button>
 
                         <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 13.5, fontWeight: 600, color: t.text, textDecoration: todo.done ? "line-through" : "none" }}>{todo.text}</div>
+                            <div style={{ fontSize: 13.5, fontWeight: 600, color: t.text, textDecoration: todo.completed ? "line-through" : "none" }}>{todo.text}</div>
                             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                                <span style={{ fontSize: 10, fontWeight: 600, color: t.textMuted }}>📅 {todo.due}</span>
-                                <span style={{ fontSize: 10, fontWeight: 600, color: t.textMuted }}>📁 {todo.category}</span>
+                                <span style={{ fontSize: 10, fontWeight: 600, color: t.textMuted }}>📅 {new Date(todo.createdAt).toLocaleDateString()}</span>
                             </div>
                         </div>
 
@@ -154,6 +199,20 @@ export default function TodosPage() {
                         }}>
                             {priorityConfig[todo.priority].label}
                         </span>
+
+                        <motion.button
+                            whileTap={{ scale: 0.85 }}
+                            onClick={() => deleteTodo(todo._id)}
+                            style={{
+                                width: 28, height: 28, borderRadius: 6, flexShrink: 0,
+                                border: "none", background: "transparent", cursor: "pointer",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                opacity: 0.4, transition: "opacity 0.2s",
+                            }}
+                            onHoverStart={() => {}}
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.danger} strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                        </motion.button>
                     </motion.div>
                 ))}
             </div>

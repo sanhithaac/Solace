@@ -10,7 +10,7 @@ const doctors = [
     { id: 3, name: "Dr. Rahul Mehta", specialty: "Counseling Psychologist", rating: 4.7, reviews: 72, available: false, price: "₹600", image: "👨‍⚕️", slots: [], languages: ["English", "Hindi", "Marathi"] },
     { id: 4, name: "Dr. Sarah Khan", specialty: "Art Therapist", rating: 4.9, reviews: 156, available: true, price: "₹450", image: "👩‍🎨", slots: ["9:00 AM", "1:00 PM", "5:00 PM"], languages: ["English", "Urdu"] },
     { id: 5, name: "Dr. Deepa Nair", specialty: "Women's Mental Health", rating: 4.8, reviews: 203, available: true, price: "₹700", image: "👩‍⚕️", slots: ["10:30 AM", "2:30 PM"], languages: ["English", "Malayalam"] },
-    { id: 6, name: "Dr. Vikram Singh", specialty: "Student Counselor", rating: 4.6, reviews: 64, available: true, price: "₹400", image: "🧑‍💼", slots: ["11:30 AM", "4:00 PM"], languages: ["English", "Hindi", "Punjabi"] },
+    { id: 6, name: "Dr. Vikram Singh", specialty: "Wellness Counselor", rating: 4.6, reviews: 64, available: true, price: "₹400", image: "🧑‍💼", slots: ["11:30 AM", "4:00 PM"], languages: ["English", "Hindi", "Punjabi"] },
 ];
 
 const specialties = ["All", "Psychologist", "Psychiatrist", "Counselor", "Therapist", "Women's Health"];

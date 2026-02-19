@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 
 const feedItems = [
-    { id: 1, type: "article", title: "Understanding Anxiety: A Student's Guide", desc: "Learn the science behind anxiety and practical techniques to manage it during exam season.", category: "Education", readTime: "5 min", emoji: "🧠", likes: 128 },
+    { id: 1, type: "article", title: "Understanding Anxiety: A Practical Guide", desc: "Learn the science behind anxiety and practical techniques to manage it in daily life.", category: "Education", readTime: "5 min", emoji: "🧠", likes: 128 },
     { id: 2, type: "exercise", title: "5-Minute Box Breathing Exercise", desc: "A quick guided breathing technique to calm your nervous system instantly.", category: "Exercise", readTime: "5 min", emoji: "🫁", likes: 256 },
     { id: 3, type: "quiz", title: "What's Your Stress Style?", desc: "Take this interactive quiz to discover how you handle stress and get personalized tips.", category: "Interactive", readTime: "3 min", emoji: "📋", likes: 89 },
     { id: 4, type: "article", title: "The Power of Micro-Breaks", desc: "Why taking 30-second breaks every 25 minutes can dramatically improve your mental health.", category: "Productivity", readTime: "4 min", emoji: "⏸️", likes: 195 },

@@ -1,15 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 
-const mockEntries = [
-    { id: 1, date: "Feb 19, 2026", title: "Gratitude Morning", content: "Today I woke up feeling grateful. The sun was shining and I had a productive study session...", mood: "😊", sentiment: "Positive", tags: ["gratitude", "productive", "calm"], xp: 15 },
-    { id: 2, date: "Feb 18, 2026", title: "Stressful Day", content: "Had a tough exam today. Feeling anxious about results but trying to stay positive...", mood: "😟", sentiment: "Mixed", tags: ["stress", "exam", "anxiety"], xp: 15 },
-    { id: 3, date: "Feb 17, 2026", title: "Coffee & Clarity", content: "Had a lovely coffee with friends. We talked about our goals and I felt inspired...", mood: "☕", sentiment: "Positive", tags: ["friends", "inspiration", "social"], xp: 15 },
-    { id: 4, date: "Feb 16, 2026", title: "Self-Care Sunday", content: "Took a long bath, read a book, and did some yoga. Feeling recharged...", mood: "🧘", sentiment: "Very Positive", tags: ["self-care", "relaxation", "wellness"], xp: 15 },
-];
+interface JournalEntry {
+    _id: string;
+    title: string;
+    content: string;
+    mood: string;
+    sentiment: string;
+    tags: string[];
+    createdAt: string;
+}
 
 const sentimentColors: Record<string, string> = {
     "Very Positive": "#4caf7c",
@@ -21,9 +25,59 @@ const sentimentColors: Record<string, string> = {
 
 export default function JournalPage() {
     const { t } = useTheme();
+    const { user } = useAuth();
+    const [entries, setEntries] = useState<JournalEntry[]>([]);
     const [isWriting, setIsWriting] = useState(false);
     const [newEntry, setNewEntry] = useState("");
     const [newTitle, setNewTitle] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+
+    // Load entries on mount
+    useEffect(() => {
+        if (!user) return;
+        const fetchEntries = async () => {
+            try {
+                const res = await fetch(`/api/journal?uid=${user.uid}`);
+                const data = await res.json();
+                if (data.entries) setEntries(data.entries);
+            } catch (err) {
+                console.error("Failed to load journal:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchEntries();
+    }, [user]);
+
+    const handleSave = async () => {
+        if (!newEntry.trim() || !user) return;
+        setSaving(true);
+        try {
+            const res = await fetch("/api/journal", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    uid: user.uid,
+                    title: newTitle || "Untitled Entry",
+                    content: newEntry,
+                    mood: "📝",
+                    tags: ["journal"]
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setEntries([data.entry, ...entries]);
+                setIsWriting(false);
+                setNewTitle("");
+                setNewEntry("");
+            }
+        } catch (err) {
+            console.error("Save failed:", err);
+        } finally {
+            setSaving(false);
+        }
+    };
 
     return (
         <>
@@ -43,7 +97,7 @@ export default function JournalPage() {
                     }}
                 >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                    New Entry
+                    {isWriting ? "Close Editor" : "New Entry"}
                 </motion.button>
             </div>
 
@@ -85,7 +139,13 @@ export default function JournalPage() {
                                 <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 500 }}>🤖 AI sentiment analysis will run on save</span>
                                 <div style={{ display: "flex", gap: 8 }}>
                                     <button onClick={() => setIsWriting(false)} style={{ padding: "9px 18px", borderRadius: 9, border: `1px solid ${t.inputBorder}`, background: "transparent", color: t.textSoft, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-                                    <button style={{ padding: "9px 18px", borderRadius: 9, border: "none", background: t.accentGrad, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Save & Analyze ✨</button>
+                                    <button
+                                        onClick={handleSave}
+                                        disabled={saving}
+                                        style={{ padding: "9px 18px", borderRadius: 9, border: "none", background: t.accentGrad, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: saving ? 0.7 : 1 }}
+                                    >
+                                        {saving ? "Analyzing..." : "Save & Analyze ✨"}
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -95,9 +155,16 @@ export default function JournalPage() {
 
             {/* Entries List */}
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {mockEntries.map((entry, i) => (
+                {loading ? (
+                    <p style={{ textAlign: "center", color: t.textSoft, fontSize: 14 }}>Loading your journal entries...</p>
+                ) : entries.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: 40, background: t.cardBg, borderRadius: 16, border: `1px dashed ${t.cardBorder}` }}>
+                        <p style={{ color: t.textSoft, fontSize: 14, marginBottom: 10 }}>No entries yet.</p>
+                        <button onClick={() => setIsWriting(true)} style={{ background: "none", border: "none", color: t.accent, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>Start your first entry</button>
+                    </div>
+                ) : entries.map((entry, i) => (
                     <motion.div
-                        key={entry.id}
+                        key={entry._id}
                         initial={{ opacity: 0, y: 12 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.06 }}
@@ -113,19 +180,21 @@ export default function JournalPage() {
                                 <span style={{ fontSize: 24 }}>{entry.mood}</span>
                                 <div>
                                     <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text }}>{entry.title}</h3>
-                                    <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 500 }}>{entry.date}</span>
+                                    <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 500 }}>
+                                        {new Date(entry.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </span>
                                 </div>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 <span style={{
                                     fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 6,
-                                    background: `${sentimentColors[entry.sentiment]}20`,
-                                    color: sentimentColors[entry.sentiment],
+                                    background: `${sentimentColors[entry.sentiment] || t.accent}20`,
+                                    color: sentimentColors[entry.sentiment] || t.accent,
                                     textTransform: "uppercase", letterSpacing: "0.05em",
                                 }}>
                                     {entry.sentiment}
                                 </span>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: t.accent, background: t.accentSoft, padding: "4px 8px", borderRadius: 5 }}>+{entry.xp} XP</span>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: t.accent, background: t.accentSoft, padding: "4px 8px", borderRadius: 5 }}>+50 XP</span>
                             </div>
                         </div>
                         <p style={{ fontSize: 13, color: t.textSoft, lineHeight: 1.6, marginBottom: 12 }}>{entry.content}</p>

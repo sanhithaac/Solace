@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 
 const successStories = [
-    { id: 1, title: "From Burnout to Balance", excerpt: "How I recovered from academic burnout and learned to prioritize my mental health alongside my studies.", author: "Anonymous Student", time: "2 days ago", hearts: 234, category: "Recovery", emoji: "🌅" },
+    { id: 1, title: "From Burnout to Balance", excerpt: "How I recovered from burnout and learned to prioritize my mental health and well-being.", author: "Anonymous", time: "2 days ago", hearts: 234, category: "Recovery", emoji: "🌅" },
     { id: 2, title: "Breaking the Silence", excerpt: "After years of suffering in silence, I finally sought help. Therapy changed my life and I want others to know it's okay to ask.", author: "Anonymous", time: "3 days ago", hearts: 456, category: "Courage", emoji: "🗣️" },
     { id: 3, title: "My Meditation Journey", excerpt: "365 days of meditation: how a simple daily practice transformed my anxiety into calm awareness.", author: "Mindful User", time: "5 days ago", hearts: 189, category: "Wellness", emoji: "🧘" },
     { id: 4, title: "Finding My Voice", excerpt: "As a woman in tech, I faced imposter syndrome daily. Here's how I overcame it and found my confidence.", author: "Anonymous", time: "1 week ago", hearts: 567, category: "Empowerment", emoji: "💪" },
@@ -23,8 +23,8 @@ const empowermentQuotes = [
 const scrapedNews = [
     { title: "Indian Women Engineers Lead Mars Mission Research", source: "Times of India", time: "1h ago", category: "STEM", emoji: "🚀" },
     { title: "Record Number of Women Founders in Tech Startups This Year", source: "Economic Times", time: "3h ago", category: "Business", emoji: "💼" },
-    { title: "Mental Health Awareness Campaign Reaches 1M Students", source: "India Today", time: "6h ago", category: "Health", emoji: "🧠" },
-    { title: "New Study Shows Yoga Reduces Student Anxiety by 40%", source: "Healthline", time: "1d ago", category: "Research", emoji: "📊" },
+    { title: "Mental Health Awareness Campaign Reaches 1M Women", source: "India Today", time: "6h ago", category: "Health", emoji: "🧠" },
+    { title: "New Study Shows Yoga Reduces Anxiety in Women by 40%", source: "Healthline", time: "1d ago", category: "Research", emoji: "📊" },
     { title: "Women's Self-Help Groups Transform Rural Communities", source: "The Hindu", time: "1d ago", category: "Society", emoji: "🤝" },
 ];
 

@@ -74,7 +74,7 @@ function CrisisButton() {
 
 // ─── Inner Layout (uses theme) ──────────────────────────────
 function DashboardInner({ children }: { children: React.ReactNode }) {
-    const { mode, setMode, isDark, t } = useTheme();
+    const { t } = useTheme();
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState(false);
 
@@ -138,30 +138,6 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.text} strokeWidth="2" strokeLinecap="round"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
                         </button>
                     </div>
-
-                    {/* Mode Toggle */}
-                    {!collapsed && (
-                        <div style={{ padding: "0 14px", marginBottom: 8 }}>
-                            <div style={{ display: "flex", gap: 3, padding: 3, borderRadius: 10, background: t.accentSoft }}>
-                                {(["student", "women"] as const).map((m) => (
-                                    <button
-                                        key={m}
-                                        onClick={() => setMode(m)}
-                                        style={{
-                                            flex: 1, padding: "7px 6px", borderRadius: 8, border: "none", cursor: "pointer",
-                                            fontFamily: "inherit", fontSize: 11, fontWeight: 700, letterSpacing: "0.03em",
-                                            textTransform: "uppercase",
-                                            background: mode === m ? t.accentGrad : "transparent",
-                                            color: mode === m ? "#fff" : t.textMuted,
-                                            transition: "all 0.25s",
-                                        }}
-                                    >
-                                        {m === "student" ? "Student" : "Women"}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
 
                     {/* Nav Items */}
                     <nav style={{ flex: 1, overflowY: "auto", padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2 }}>

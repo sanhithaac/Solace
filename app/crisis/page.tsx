@@ -4,11 +4,11 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 
 const hotlines = [
-    { name: "iCall (TISS)", number: "9152987821", desc: "Professional counseling for students, Mon-Sat 8am-10pm", emoji: "📞" },
+    { name: "iCall (TISS)", number: "9152987821", desc: "Professional counseling, Mon-Sat 8am-10pm", emoji: "📞" },
     { name: "Vandrevala Foundation", number: "1860-2662-345", desc: "24/7 mental health helpline, multilingual support", emoji: "🆘" },
     { name: "AASRA", number: "91-9820466726", desc: "24/7 crisis intervention and suicide prevention", emoji: "💙" },
     { name: "Women Helpline", number: "181", desc: "National helpline for women in distress", emoji: "👩" },
-    { name: "Student Helpline", number: "1800-599-0019", desc: "Free counseling for students under stress", emoji: "🎓" },
+    { name: "Women Helpline", number: "181", desc: "24/7 free helpline for women in distress", emoji: "🌸" },
     { name: "Emergency", number: "112", desc: "National emergency number for immediate danger", emoji: "🚨" },
 ];
 
