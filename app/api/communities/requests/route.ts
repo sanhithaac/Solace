@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import Community from "@/models/Community";
 import CommunityRequest from "@/models/CommunityRequest";
-
+export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
     try {
         await connectToDatabase();
