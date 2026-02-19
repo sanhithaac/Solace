@@ -3,7 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import DoctorSlot from "@/models/DoctorSlot";
 import { ensureSlotsSeeded } from "@/lib/doctorsSeed";
 import { Types } from "mongoose";
-
+export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
