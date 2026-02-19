@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { analyzeJournalInsights } from "@/lib/gemini";
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
     try {
