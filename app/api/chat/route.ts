@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import Conversation from "@/models/Conversation";
 import { buildRagReply, retrieveMemories, storeMemory } from "@/lib/ragMemory";
 import { generateChatReply } from "@/lib/gemini";
+export const dynamic = "force-dynamic";
 
 function isHighRiskText(text: string) {
     const value = text.toLowerCase();
