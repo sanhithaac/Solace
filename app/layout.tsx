@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
+import { AuthProvider } from "@/context/AuthContext";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -21,7 +22,9 @@ export default function RootLayout({
     return (
         <html lang="en" className="no-scrollbar">
             <body className={`${outfit.variable} font-outfit antialiased selection:bg-orange-500 selection:text-white`}>
-                {children}
+                <AuthProvider>
+                    {children}
+                </AuthProvider>
             </body>
         </html>
     );
