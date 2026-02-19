@@ -14,8 +14,20 @@ const firebaseConfig = {
 };
 
 // Lazily initialize Firebase app (singleton via Firebase SDK)
+let _missingKeyWarned = false;
 function getFirebaseApp() {
-    if (typeof window === "undefined" || !firebaseConfig.apiKey) return undefined;
+    if (typeof window === "undefined") return undefined;
+    if (!firebaseConfig.apiKey) {
+        if (!_missingKeyWarned) {
+            _missingKeyWarned = true;
+            console.warn(
+                "Firebase: NEXT_PUBLIC_FIREBASE_API_KEY is not set. " +
+                "Auth will not work. Add your Firebase environment variables to .env.local (for local dev) " +
+                "or to your Vercel project settings (for deployment)."
+            );
+        }
+        return undefined;
+    }
     return !getApps().length ? initializeApp(firebaseConfig) : getApp();
 }
 
