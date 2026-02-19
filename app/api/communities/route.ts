@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import Community from "@/models/Community";
 import CommunityThread from "@/models/CommunityThread";
 import User from "@/models/User";
+export const dynamic = "force-dynamic";
 
 type SeedCommunity = {
     name: string;
