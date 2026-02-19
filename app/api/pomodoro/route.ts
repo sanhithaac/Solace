@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import PomodoroSession from "@/models/PomodoroSession";
 import User from "@/models/User";
+export const dynamic = "force-dynamic";
 
 // GET /api/pomodoro?uid=xxx — Fetch pomodoro stats
 export async function GET(request: Request) {
