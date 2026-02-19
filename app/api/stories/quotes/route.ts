@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import StoryContent from "@/models/StoryContent";
 import { ensureStoriesSeeded } from "@/lib/storiesSeed";
+export const dynamic = "force-dynamic";
 
 function getDayOfYear(date: Date) {
     const start = new Date(date.getFullYear(), 0, 0);
