@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import MoodLog from "@/models/MoodLog";
+export const dynamic = "force-dynamic";
 
 // Map all mood labels → intensity level (0-4)
 const moodLevels: Record<string, number> = {
