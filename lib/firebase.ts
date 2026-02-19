@@ -13,12 +13,12 @@ const firebaseConfig = {
     measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase only when config is available (skip during prerendering/build)
+// Initialize Firebase only on the client (skip during SSR/prerendering)
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
 
-if (firebaseConfig.apiKey) {
+if (typeof window !== "undefined") {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
     db = getFirestore(app);
