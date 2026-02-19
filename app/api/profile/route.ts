@@ -5,6 +5,7 @@ import MoodLog from "@/models/MoodLog";
 import JournalEntry from "@/models/JournalEntry";
 import Todo from "@/models/Todo";
 import PomodoroSession from "@/models/PomodoroSession";
+export const dynamic = "force-dynamic";
 
 // GET /api/profile?uid=xxx — Fetch user profile with real stats
 export async function GET(request: Request) {
