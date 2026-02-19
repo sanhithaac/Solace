@@ -5,13 +5,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type AuthView = "login" | "signup";
 type SignupType = "anonymous" | "full";
 
 export default function AuthPage() {
-    const [authView, setAuthView] = useState<AuthView>("signup");
+    const searchParams = useSearchParams();
+    const initialView = searchParams.get("view") === "login" ? "login" : "signup";
+    const [authView, setAuthView] = useState<AuthView>(initialView);
     const [signupType, setSignupType] = useState<SignupType>("anonymous");
     const [showPassword, setShowPassword] = useState(false);
 
