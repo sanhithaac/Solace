@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import Community from "@/models/Community";
 import CommunityThread from "@/models/CommunityThread";
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
     try {
