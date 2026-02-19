@@ -1,12 +1,14 @@
-# Nano Banana | Premium Scrollytelling Website
+# Solace | A Safe Space for Mental Wellness
 
-This is a production-ready, high-end e-commerce site for **Nano Banana**, built with Next.js 14, Framer Motion, and HTML5 Canvas.
+Solace is a mental wellness platform designed to provide a gentle space for inner peace, journaling, mood tracking, and community support.
 
 ## Features
-- **Scrollytelling Bottle Animation**: High-performance image sequence rendering using HTML5 Canvas.
-- **Dynamic Product Switching**: Fluid transitions between different product flavors with unique themes.
-- **Premium Aesthetics**: Dark mode, glassmorphism, and custom Google Fonts (Outfit).
-- **Static Export**: Pre-configured for static hosting (Netlify, Vercel, etc.).
+- **Mood Tracking**: Log and visualize your mood trends with Heatmaps.
+- **Journaling**: Secure and private journal entries.
+- **Anonymous Communities**: Share and connect with others anonymously.
+- **Crisis Support**: Quick access to resources when needed.
+- **Pomodoro Timer**: Boost productivity with a built-in focus tool.
+- **Todos**: Manage your mental wellness tasks and goals.
 
 ## Getting Started
 
@@ -20,18 +22,20 @@ This is a production-ready, high-end e-commerce site for **Nano Banana**, built 
    npm run dev
    ```
 
-3. **Build and Export**:
+3. **Build**:
    ```bash
    npm run build
    ```
-   The static files will be generated in the `out` directory.
 
 ## Project Structure
-- `app/`: Next.js App Router pages and layouts.
-- `components/`: Reusable React components (Navbar, Footer, Scroll Engine).
-- `data/`: Product marketing copy and configuration.
-- `public/images/`: High-quality assets for the scroll sequence.
+- `app/`: Next.js App Router for dashboard, auth, and feature pages.
+- `context/`: Auth and Theme contexts.
+- `lib/`: Firebase and MongoDB configurations.
+- `models/`: Mongoose schemas for users, journaling, and more.
 
-## Credits
-- Designed for Nano Banana.
-- Built with Framer Motion and Next.js.
+## Tech Stack
+- **Framework**: Next.js 14
+- **Database**: MongoDB (Mongoose)
+- **Auth/Storage**: Firebase
+- **Styling**: Tailwind CSS, Framer Motion
+- **Fonts**: Outfit, DM Sans, Nunito

@@ -10,8 +10,8 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-    title: "Nano Banana | Future of Freshness",
-    description: "Premium cold-pressed juices for the digital age.",
+    title: "Solace | A Safe Space for Mental Wellness",
+    description: "A gentle space for your inner peace, journaling, and community support.",
 };
 
 export default function RootLayout({
