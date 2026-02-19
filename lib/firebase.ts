@@ -15,8 +15,8 @@ const firebaseConfig = {
 
 // Initialize Firebase only when config is available (skip during prerendering/build)
 let app: FirebaseApp | undefined;
-let auth!: Auth;
-let db!: Firestore;
+let auth: Auth | undefined;
+let db: Firestore | undefined;
 
 if (firebaseConfig.apiKey) {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();

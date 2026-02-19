@@ -43,12 +43,14 @@ function AuthPageContent() {
 
         try {
             if (authView === "login") {
+                if (!auth) throw new Error("Firebase auth is not initialized");
                 await signInWithEmailAndPassword(auth, email, password);
                 router.push("/dashboard");
             } else {
                 if (signupType === "anonymous") {
                     await signInAnon();
                 } else {
+                    if (!auth) throw new Error("Firebase auth is not initialized");
                     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                     if (username) {
                         await updateProfile(userCredential.user, { displayName: username });
