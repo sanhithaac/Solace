@@ -8,7 +8,7 @@ import {
     GoogleAuthProvider,
     signInWithPopup
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 
 interface AuthContextType {
@@ -33,6 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const router = useRouter();
 
     useEffect(() => {
+        const auth = getFirebaseAuth();
         if (!auth) {
             setLoading(false);
             return;
@@ -71,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, [router]);
 
     const signInAnon = async () => {
+        const auth = getFirebaseAuth();
         if (!auth) throw new Error("Firebase auth is not initialized");
         try {
             await signInAnonymously(auth);
@@ -82,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const signInGoogle = async () => {
+        const auth = getFirebaseAuth();
         if (!auth) throw new Error("Firebase auth is not initialized");
         try {
             const provider = new GoogleAuthProvider();
@@ -94,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const logout = async () => {
+        const auth = getFirebaseAuth();
         if (!auth) return;
         try {
             await auth.signOut();

@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type AuthView = "login" | "signup";
@@ -43,6 +43,7 @@ function AuthPageContent() {
 
         try {
             if (authView === "login") {
+                const auth = getFirebaseAuth();
                 if (!auth) throw new Error("Firebase auth is not initialized");
                 await signInWithEmailAndPassword(auth, email, password);
                 router.push("/dashboard");
@@ -50,6 +51,7 @@ function AuthPageContent() {
                 if (signupType === "anonymous") {
                     await signInAnon();
                 } else {
+                    const auth = getFirebaseAuth();
                     if (!auth) throw new Error("Firebase auth is not initialized");
                     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                     if (username) {

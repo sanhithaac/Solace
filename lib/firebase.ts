@@ -1,6 +1,6 @@
-import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getAuth, Auth } from "firebase/auth";
-import { getFirestore, Firestore } from "firebase/firestore";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -13,34 +13,29 @@ const firebaseConfig = {
     measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase on the client when config is available
-let app: FirebaseApp | undefined;
-let auth: Auth | undefined;
-let db: Firestore | undefined;
-let analytics: ReturnType<typeof getAnalytics> | undefined;
-
-if (typeof window !== "undefined") {
-    if (firebaseConfig.apiKey) {
-        try {
-            app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-            auth = getAuth(app);
-            db = getFirestore(app);
-
-            isSupported().then((supported) => {
-                if (supported && app) {
-                    analytics = getAnalytics(app);
-                }
-            });
-        } catch (error) {
-            console.error("Firebase initialization error:", error);
-        }
-    } else {
-        console.warn(
-            "Firebase: NEXT_PUBLIC_FIREBASE_API_KEY is not set. " +
-            "Auth will not work. Add your Firebase environment variables to .env.local (for local dev) " +
-            "or to your Vercel project settings (for deployment)."
-        );
-    }
+// Lazily initialize Firebase app (singleton via Firebase SDK)
+function getFirebaseApp() {
+    if (typeof window === "undefined" || !firebaseConfig.apiKey) return undefined;
+    return !getApps().length ? initializeApp(firebaseConfig) : getApp();
 }
 
-export { auth, db, analytics };
+// Lazy getters — safe to call multiple times, Firebase SDK caches internally
+export function getFirebaseAuth() {
+    const app = getFirebaseApp();
+    return app ? getAuth(app) : undefined;
+}
+
+export function getFirebaseDb() {
+    const app = getFirebaseApp();
+    return app ? getFirestore(app) : undefined;
+}
+
+// Initialize analytics on the client
+if (typeof window !== "undefined") {
+    const app = getFirebaseApp();
+    if (app) {
+        isSupported().then((supported) => {
+            if (supported) getAnalytics(app);
+        });
+    }
+}
