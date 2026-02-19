@@ -1,16 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type AuthView = "login" | "signup";
 type SignupType = "anonymous" | "full";
 
-export default function AuthPage() {
+function AuthPageContent() {
     const searchParams = useSearchParams();
     const initialView = searchParams.get("view") === "login" ? "login" : "signup";
     const [authView, setAuthView] = useState<AuthView>(initialView);
@@ -43,12 +43,16 @@ export default function AuthPage() {
 
         try {
             if (authView === "login") {
+                const auth = getFirebaseAuth();
+                if (!auth) throw new Error("Firebase auth is not initialized");
                 await signInWithEmailAndPassword(auth, email, password);
                 router.push("/dashboard");
             } else {
                 if (signupType === "anonymous") {
                     await signInAnon();
                 } else {
+                    const auth = getFirebaseAuth();
+                    if (!auth) throw new Error("Firebase auth is not initialized");
                     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                     if (username) {
                         await updateProfile(userCredential.user, { displayName: username });
@@ -421,5 +425,13 @@ function Mtns() {
             <path d="M0 180 L80 90 L160 130 L280 45 L380 100 L500 25 L600 80 L720 55 L800 110 L800 180 Z" fill="rgba(58,32,48,0.05)" />
             <path d="M0 180 L120 120 L220 150 L340 70 L460 130 L580 60 L700 95 L800 140 L800 180 Z" fill="rgba(58,32,48,0.03)" />
         </svg>
+    );
+}
+
+export default function AuthPage() {
+    return (
+        <Suspense fallback={null}>
+            <AuthPageContent />
+        </Suspense>
     );
 }
