@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import Conversation from "@/models/Conversation";
+import { buildRagReply, retrieveMemories, storeMemory } from "@/lib/ragMemory";
+import { classifyRisk, generateChatReply, shouldExtractMemory } from "@/lib/gemini";
 
 export async function GET(request: Request) {
     try {
@@ -32,28 +34,66 @@ export async function POST(request: Request) {
             conversation = new Conversation({ uid, messages: [] });
         }
 
-        // 2. Add user message
+        // 2. Add user message in local conversation history
         conversation.messages.push({ role: "user", text });
 
-        // 3. Simple AI logic (Replace with real LLM API call if needed)
-        const aiResponses = [
-            "I hear you, and your feelings are completely valid. Let's take a moment to breathe. Would you like a grounding exercise?",
-            "That sounds like a lot to carry. Remember, it's okay to not be okay. Want some coping strategies?",
-            "Thank you for sharing that. Your honesty takes courage. Let's explore what might help.",
-            "I understand how that can feel overwhelming. Let's break it down into smaller steps. Want to try?",
-        ];
-        const aiText = aiResponses[Math.floor(Math.random() * aiResponses.length)];
+        // 3. RAG retrieval (top 8 per user) from python memory service
+        const memories = await retrieveMemories({ uid, query: text, topK: 8 });
+        const risk = await classifyRisk(text);
+        const memoryDecision = await shouldExtractMemory(text);
 
-        // 4. Add AI response
+        // 4. Build grounded response via Gemini (fallback to local builder)
+        let aiText = "";
+        try {
+            aiText = await generateChatReply({
+                userText: text,
+                retrievedContext: memories.map((m) => ({
+                    source: m.source,
+                    role: m.role,
+                    text: m.text,
+                    similarity: m.similarity,
+                    createdAtMs: m.createdAtMs,
+                })),
+            });
+        } catch (err) {
+            console.error("Gemini chat fallback:", err);
+            aiText = buildRagReply(text, memories);
+        }
+
+        // 5. Add AI response to local conversation history
         conversation.messages.push({ role: "ai", text: aiText });
         conversation.lastInteraction = new Date();
 
-        // 5. Save to MongoDB
+        // 6. Save to MongoDB
         await conversation.save();
+
+        // 7. Persist user+assistant turns into python semantic memory service
+        await storeMemory({
+            uid,
+            text,
+            role: "user",
+            source: "chat",
+            metadata: {
+                conversation: "default",
+                risk,
+                shouldRemember: memoryDecision.shouldRemember,
+                memoryType: memoryDecision.shouldRemember ? memoryDecision.memoryType : "",
+                summary: memoryDecision.shouldRemember ? memoryDecision.summary : "",
+            },
+        });
+        await storeMemory({
+            uid,
+            text: aiText,
+            role: "assistant",
+            source: "chat",
+            metadata: { conversation: "default" },
+        });
 
         return NextResponse.json({
             success: true,
-            aiMessage: { role: "ai", text: aiText, timestamp: new Date() }
+            aiMessage: { role: "ai", text: aiText, timestamp: new Date() },
+            retrievedCount: memories.length,
+            risk,
         });
     } catch (error: any) {
         console.error("Chat API Error:", error);

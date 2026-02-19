@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 
 // ─── Nav Items ──────────────────────────────────────────────
 const navItems = [
@@ -12,7 +13,6 @@ const navItems = [
     { href: "/dashboard/journal", label: "Journal", icon: "journal" },
     { href: "/dashboard/mood", label: "Mood & Cycle", icon: "mood" },
     { href: "/dashboard/chat", label: "AI Chat", icon: "chat" },
-    { href: "/dashboard/feed", label: "Feed", icon: "feed" },
     { href: "/dashboard/todos", label: "To-Do", icon: "todos" },
     { href: "/dashboard/doctors", label: "Doctors", icon: "doctors" },
     { href: "/dashboard/anonymous", label: "Anonymous", icon: "anon" },
@@ -32,7 +32,6 @@ function NavIcon({ icon, color }: { icon: string; color: string }) {
         case "journal": return <svg {...s}><path d="M4 19.5A2.5 2.5 0 016.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" /><line x1="8" y1="7" x2="16" y2="7" /><line x1="8" y1="11" x2="13" y2="11" /></svg>;
         case "mood": return <svg {...s}><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="2.5" /><line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="2.5" /></svg>;
         case "chat": return <svg {...s}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" /></svg>;
-        case "feed": return <svg {...s}><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>;
         case "todos": return <svg {...s}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>;
         case "doctors": return <svg {...s}><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>;
         case "anon": return <svg {...s}><circle cx="12" cy="7" r="4" /><path d="M5.5 21C5.5 16.86 8.36 14 12 14s6.5 2.86 6.5 7" /><line x1="2" y1="2" x2="22" y2="22" opacity="0.35" /></svg>;
@@ -75,8 +74,71 @@ function CrisisButton() {
 // ─── Inner Layout (uses theme) ──────────────────────────────
 function DashboardInner({ children }: { children: React.ReactNode }) {
     const { t } = useTheme();
+    const { user } = useAuth();
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState(false);
+
+    useEffect(() => {
+        if (!user || typeof window === "undefined" || typeof Notification === "undefined") return;
+
+        const AGENT_PREFIX = "solace-reminder-agent";
+        const reminderWindowMs = 30 * 60 * 1000;
+        let intervalId: ReturnType<typeof setInterval> | null = null;
+
+        // Reminder Agent: polls upcoming bookings and sends one browser alert 30 minutes before start.
+        const runReminderAgent = async () => {
+            try {
+                localStorage.setItem(`${AGENT_PREFIX}-status`, "running");
+                localStorage.setItem(`${AGENT_PREFIX}-last-run`, String(Date.now()));
+                localStorage.removeItem(`${AGENT_PREFIX}-last-error`);
+
+                const res = await fetch(`/api/doctors/bookings?uid=${user.uid}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const bookings = Array.isArray(data.bookings) ? data.bookings : [];
+                localStorage.setItem(`${AGENT_PREFIX}-checked-count`, String(bookings.length));
+                const now = Date.now();
+
+                for (const booking of bookings) {
+                    const startTime = new Date(booking.startTime).getTime();
+                    if (!Number.isFinite(startTime)) continue;
+                    const reminderAt = startTime - reminderWindowMs;
+                    if (now < reminderAt || now >= startTime) continue;
+
+                    const key = `solace-reminder-${booking.id}-${reminderAt}`;
+                    if (localStorage.getItem(key)) continue;
+
+                    if (Notification.permission === "granted") {
+                        new Notification("Upcoming Appointment", {
+                            body: `Your session with ${booking.doctorName || "your doctor"} starts in 30 minutes.`,
+                        });
+                        localStorage.setItem(`${AGENT_PREFIX}-last-notified-at`, String(now));
+                        localStorage.setItem(`${AGENT_PREFIX}-last-notified-booking`, booking.id || "");
+                    }
+
+                    localStorage.setItem(key, String(now));
+                }
+            } catch (err) {
+                console.error("Reminder agent error:", err);
+                const message = err instanceof Error ? err.message : "Unknown reminder agent error";
+                localStorage.setItem(`${AGENT_PREFIX}-last-error`, message);
+            }
+        };
+
+        if (Notification.permission === "default") {
+            Notification.requestPermission().catch(() => {
+                // ignore permission request failure
+            });
+        }
+
+        runReminderAgent();
+        intervalId = setInterval(runReminderAgent, 60 * 1000);
+
+        return () => {
+            localStorage.setItem(`${AGENT_PREFIX}-status`, "stopped");
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [user]);
 
     return (
         <>

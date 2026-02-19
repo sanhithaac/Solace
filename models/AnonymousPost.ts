@@ -2,10 +2,14 @@ import mongoose, { Schema, model, models } from "mongoose";
 
 const AnonymousPostSchema = new Schema({
     uid: { type: String, required: true, index: true }, // Firebase UID (kept for XP, but NOT shown)
+    anonHandle: { type: String, default: "" }, // e.g. anon_sky_9f2a
+    title: { type: String, default: "" },
     content: { type: String, required: true },
     tags: [{ type: String }],
     hearts: { type: Number, default: 0 },
     hugs: { type: Number, default: 0 },
+    reposts: { type: Number, default: 0 },
+    replies: { type: Number, default: 0 },
     heartedBy: [{ type: String }], // UIDs who hearted
     huggedBy: [{ type: String }], // UIDs who hugged
     createdAt: { type: Date, default: Date.now },

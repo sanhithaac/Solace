@@ -1,16 +1,20 @@
-"use client";
+﻿"use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 
 interface AnonPost {
     _id: string;
+    anonHandle: string;
+    title?: string;
     content: string;
     tags: string[];
     hearts: number;
     hugs: number;
+    replies: number;
+    reposts: number;
     createdAt: string;
     hearted?: boolean;
     hugged?: boolean;
@@ -26,6 +30,7 @@ export default function AnonymousPage() {
     const { t } = useTheme();
     const { user } = useAuth();
     const [posts, setPosts] = useState<AnonPost[]>([]);
+    const [postTitle, setPostTitle] = useState("");
     const [newPost, setNewPost] = useState("");
     const [selectedTag, setSelectedTag] = useState("courage");
     const [loading, setLoading] = useState(true);
@@ -34,7 +39,8 @@ export default function AnonymousPage() {
     useEffect(() => {
         const fetchPosts = async () => {
             try {
-                const res = await fetch("/api/anonymous");
+                const q = user?.uid ? `?uid=${user.uid}` : "";
+                const res = await fetch(`/api/anonymous${q}`);
                 const data = await res.json();
                 if (data.posts) setPosts(data.posts);
             } catch (err) {
@@ -44,7 +50,7 @@ export default function AnonymousPage() {
             }
         };
         fetchPosts();
-    }, []);
+    }, [user]);
 
     const addPost = async () => {
         if (!newPost.trim() || !user) return;
@@ -53,11 +59,12 @@ export default function AnonymousPage() {
             const res = await fetch("/api/anonymous", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ uid: user.uid, content: newPost, tags: [selectedTag] }),
+                body: JSON.stringify({ uid: user.uid, title: postTitle, content: newPost, tags: [selectedTag] }),
             });
             const data = await res.json();
             if (data.success) {
                 setPosts([data.post, ...posts]);
+                setPostTitle("");
                 setNewPost("");
             }
         } catch (err) {
@@ -97,33 +104,62 @@ export default function AnonymousPage() {
     const timeAgo = (date: string) => {
         const diff = Date.now() - new Date(date).getTime();
         const mins = Math.floor(diff / 60000);
-        if (mins < 60) return `${mins}m ago`;
+        if (mins < 60) return `${mins}m`;
         const hrs = Math.floor(mins / 60);
-        if (hrs < 24) return `${hrs}h ago`;
-        return `${Math.floor(hrs / 24)}d ago`;
+        if (hrs < 24) return `${hrs}h`;
+        return `${Math.floor(hrs / 24)}d`;
     };
 
     return (
-        <>
-            <div style={{ marginBottom: 28 }}>
+        <div style={{ display: "grid", gap: 14 }}>
+            <style jsx>{`
+                .anon-grid {
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 12px;
+                }
+                @media (max-width: 900px) {
+                    .anon-grid {
+                        grid-template-columns: minmax(0, 1fr);
+                    }
+                }
+            `}</style>
+            <div>
                 <h1 style={{ fontSize: 26, fontWeight: 800, color: t.text, letterSpacing: "-0.03em", marginBottom: 3 }}>Anonymous Space</h1>
-                <p style={{ fontSize: 13, color: t.textSoft, fontWeight: 500 }}>Share your thoughts freely. No identity, no judgment. 🕊️</p>
+                <p style={{ fontSize: 13, color: t.textSoft, fontWeight: 500 }}>X-style anonymous timeline: post, react, and support without revealing identity.</p>
             </div>
 
-            {/* Compose */}
-            <div style={{ padding: 20, borderRadius: 16, background: t.cardBg, border: `1px solid ${t.cardBorder}`, marginBottom: 24 }}>
+            <div style={{ padding: 18, borderRadius: 14, background: t.cardBg, border: `1px solid ${t.cardBorder}` }}>
+                <input
+                    value={postTitle}
+                    onChange={(e) => setPostTitle(e.target.value)}
+                    placeholder="Post header (optional)"
+                    style={{
+                        width: "100%",
+                        border: "none",
+                        background: "transparent",
+                        color: t.text,
+                        fontSize: 14,
+                        fontWeight: 800,
+                        outline: "none",
+                        fontFamily: "inherit",
+                        borderBottom: `1px solid ${t.divider}`,
+                        paddingBottom: 8,
+                        marginBottom: 10,
+                    }}
+                />
                 <textarea
                     value={newPost}
                     onChange={(e) => setNewPost(e.target.value)}
-                    placeholder="What's on your mind? Your identity stays completely anonymous..."
+                    placeholder="What do you want to say today?"
                     rows={3}
                     style={{
                         width: "100%", border: "none", resize: "none", background: "transparent",
                         color: t.text, fontSize: 14, lineHeight: 1.65, outline: "none", fontFamily: "inherit", fontWeight: 500,
                     }}
                 />
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
-                    <div style={{ display: "flex", gap: 6 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, gap: 10, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         {Object.keys(tagColors).map((tag) => (
                             <button key={tag} onClick={() => setSelectedTag(tag)} style={{
                                 padding: "5px 12px", borderRadius: 6, fontSize: 10, fontWeight: 700,
@@ -137,45 +173,40 @@ export default function AnonymousPage() {
                         ))}
                     </div>
                     <motion.button whileTap={{ scale: 0.95 }} onClick={addPost} disabled={posting} style={{
-                        padding: "10px 22px", borderRadius: 10, border: "none",
+                        padding: "10px 18px", borderRadius: 10, border: "none",
                         background: t.accentGrad, color: "#fff", fontSize: 12, fontWeight: 700,
                         cursor: "pointer", fontFamily: "inherit", opacity: posting ? 0.7 : 1,
                     }}>
-                        {posting ? "Posting..." : "Post Anonymously (+15 XP)"}
+                        {posting ? "Posting..." : "Post (+15 XP)"}
                     </motion.button>
                 </div>
+                <p style={{ margin: "10px 0 0", fontSize: 11, color: t.textMuted, fontWeight: 600 }}>
+                    Add a short header, then describe what happened and how you feel.
+                </p>
             </div>
 
-            {/* Posts */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="anon-grid">
                 {loading ? (
-                    <p style={{ textAlign: "center", color: t.textSoft, padding: 30 }}>Loading posts...</p>
+                    <p style={{ textAlign: "center", color: t.textSoft, padding: 30, gridColumn: "1 / -1" }}>Loading timeline...</p>
                 ) : posts.length === 0 ? (
-                    <p style={{ textAlign: "center", color: t.textSoft, padding: 30 }}>No posts yet. Be the first to share!</p>
+                    <p style={{ textAlign: "center", color: t.textSoft, padding: 30, gridColumn: "1 / -1" }}>No posts yet. Be the first to share.</p>
                 ) : posts.map((post, i) => (
                     <motion.div
                         key={post._id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.04 }}
-                        style={{
-                            padding: "20px 22px", borderRadius: 14, background: t.cardBg,
-                            border: `1px solid ${t.cardBorder}`,
-                        }}
+                        transition={{ delay: i * 0.03 }}
+                        style={{ padding: "18px 20px", borderRadius: 14, background: "#1f141b", border: "1px solid rgba(216,138,158,0.35)" }}
                     >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <div style={{
-                                    width: 30, height: 30, borderRadius: 8, background: t.accentSoft,
-                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                    fontSize: 14,
-                                }}>🕊️</div>
+                                <div style={{ width: 30, height: 30, borderRadius: 8, background: t.accentSoft, display: "grid", placeItems: "center", fontSize: 12, color: t.accent, fontWeight: 900 }}>X</div>
                                 <div>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>Anonymous</span>
-                                    <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500, marginLeft: 8 }}>{timeAgo(post.createdAt)}</span>
+                                    <span style={{ fontSize: 13, fontWeight: 800, color: "#ffeef4" }}>{post.anonHandle}</span>
+                                    <span style={{ fontSize: 11, color: "#d8a9ba", fontWeight: 600, marginLeft: 8 }}>{timeAgo(post.createdAt)}</span>
                                 </div>
                             </div>
-                            <div style={{ display: "flex", gap: 4 }}>
+                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                 {post.tags.map((tag) => (
                                     <span key={tag} style={{
                                         fontSize: 9, fontWeight: 700, padding: "3px 10px", borderRadius: 5,
@@ -188,21 +219,27 @@ export default function AnonymousPage() {
                             </div>
                         </div>
 
-                        <p style={{ fontSize: 14, color: t.text, lineHeight: 1.7, fontWeight: 500, marginBottom: 14 }}>{post.content}</p>
+                        {post.title && (
+                            <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 900, color: "#ffeef4", lineHeight: 1.25 }}>
+                                {post.title}
+                            </h3>
+                        )}
+                        <p style={{ fontSize: 16, color: "#ffeef4", lineHeight: 1.7, fontWeight: 600, marginBottom: 12 }}>{post.content}</p>
 
-                        <div style={{ display: "flex", gap: 16 }}>
+                        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "#d8a9ba" }}>↩ {post.replies || 0}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "#d8a9ba" }}>🔁 {post.reposts || 0}</span>
                             <button onClick={() => react(post._id, "heart")} style={{
                                 display: "flex", alignItems: "center", gap: 5, background: "none", border: "none",
-                                cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit",
-                                color: post.hearted ? t.accent : t.textMuted, transition: "color 0.2s",
+                                cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+                                color: post.hearted ? "#ffd3e2" : "#d8a9ba",
                             }}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill={post.hearted ? t.accent : "none"} stroke={post.hearted ? t.accent : t.textMuted} strokeWidth="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" /></svg>
-                                {post.hearts}
+                                ❤ {post.hearts}
                             </button>
                             <button onClick={() => react(post._id, "hug")} style={{
                                 display: "flex", alignItems: "center", gap: 5, background: "none", border: "none",
-                                cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit",
-                                color: post.hugged ? t.accent : t.textMuted, transition: "color 0.2s",
+                                cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+                                color: post.hugged ? "#ffd3e2" : "#d8a9ba",
                             }}>
                                 🤗 {post.hugs}
                             </button>
@@ -210,6 +247,6 @@ export default function AnonymousPage() {
                     </motion.div>
                 ))}
             </div>
-        </>
+        </div>
     );
 }

@@ -32,16 +32,33 @@ export default function DashboardPage() {
     const [recentActivity, setRecentActivity] = useState<any[]>([]);
     const [displayName, setDisplayName] = useState("User");
     const [loading, setLoading] = useState(true);
+    const [upcomingBookings, setUpcomingBookings] = useState<any[]>([]);
+    const [agentHealth, setAgentHealth] = useState({
+        status: "unknown",
+        permission: "unknown",
+        lastRun: "",
+        checkedCount: "0",
+        lastNotifiedAt: "",
+        lastNotifiedBooking: "",
+        lastError: "",
+    });
+
+    const AGENT_PREFIX = "solace-reminder-agent";
 
     useEffect(() => {
         if (!user) return;
         const fetchDashboard = async () => {
             try {
-                const res = await fetch(`/api/dashboard?uid=${user.uid}`);
-                const data = await res.json();
+                const [dashboardRes, bookingsRes] = await Promise.all([
+                    fetch(`/api/dashboard?uid=${user.uid}`),
+                    fetch(`/api/doctors/bookings?uid=${user.uid}`),
+                ]);
+                const data = await dashboardRes.json();
+                const bookingsData = await bookingsRes.json();
                 if (data.quickStats) setQuickStats(data.quickStats);
                 if (data.recentActivity) setRecentActivity(data.recentActivity);
                 if (data.user?.displayName) setDisplayName(data.user.displayName);
+                if (bookingsData.bookings) setUpcomingBookings(bookingsData.bookings.slice(0, 3));
             } catch (err) {
                 console.error("Dashboard fetch error:", err);
             } finally {
@@ -50,6 +67,49 @@ export default function DashboardPage() {
         };
         fetchDashboard();
     }, [user]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const readAgentHealth = () => {
+            const permission = typeof Notification !== "undefined" ? Notification.permission : "unsupported";
+            setAgentHealth({
+                status: localStorage.getItem(`${AGENT_PREFIX}-status`) || "unknown",
+                permission,
+                lastRun: localStorage.getItem(`${AGENT_PREFIX}-last-run`) || "",
+                checkedCount: localStorage.getItem(`${AGENT_PREFIX}-checked-count`) || "0",
+                lastNotifiedAt: localStorage.getItem(`${AGENT_PREFIX}-last-notified-at`) || "",
+                lastNotifiedBooking: localStorage.getItem(`${AGENT_PREFIX}-last-notified-booking`) || "",
+                lastError: localStorage.getItem(`${AGENT_PREFIX}-last-error`) || "",
+            });
+        };
+
+        readAgentHealth();
+        const intervalId = setInterval(readAgentHealth, 5000);
+        return () => clearInterval(intervalId);
+    }, []);
+
+    const handleTestNotification = async () => {
+        if (typeof Notification === "undefined") return;
+
+        if (Notification.permission === "default") {
+            await Notification.requestPermission();
+        }
+        if (Notification.permission !== "granted") return;
+
+        const now = Date.now();
+        new Notification("Solace Reminder Test", {
+            body: "Test successful: reminder agent can send browser notifications.",
+        });
+        localStorage.setItem(`${AGENT_PREFIX}-last-notified-at`, String(now));
+        localStorage.setItem(`${AGENT_PREFIX}-last-notified-booking`, "manual-test");
+        setAgentHealth((prev) => ({
+            ...prev,
+            permission: Notification.permission,
+            lastNotifiedAt: String(now),
+            lastNotifiedBooking: "manual-test",
+        }));
+    };
 
     return (
         <>
@@ -90,6 +150,110 @@ export default function DashboardPage() {
                     </motion.div>
                 ))}
             </div>
+
+            <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                style={{ padding: 22, borderRadius: 16, background: t.cardBg, border: `1px solid ${t.cardBorder}`, marginBottom: 18 }}
+            >
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 12, letterSpacing: "-0.01em" }}>
+                    Upcoming Appointments
+                </h3>
+                {upcomingBookings.length === 0 ? (
+                    <p style={{ fontSize: 13, color: t.textSoft }}>No upcoming doctor bookings yet.</p>
+                ) : (
+                    <div style={{ display: "grid", gap: 10 }}>
+                        {upcomingBookings.map((booking) => (
+                            <div
+                                key={booking.id}
+                                style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    gap: 10,
+                                    padding: "10px 12px",
+                                    borderRadius: 10,
+                                    border: `1px solid ${t.divider}`,
+                                    background: t.pageBg,
+                                }}
+                            >
+                                <div>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>
+                                        {booking.doctorName} {booking.doctorTitle ? `• ${booking.doctorTitle}` : ""}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: t.textSoft, fontWeight: 600, marginTop: 2 }}>
+                                        {new Date(booking.startTime).toLocaleString()} • {booking.sessionType}
+                                    </div>
+                                </div>
+                                <span style={{ fontSize: 10, fontWeight: 800, color: t.accent, background: t.accentSoft, padding: "4px 8px", borderRadius: 6 }}>
+                                    BOOKED
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </motion.div>
+
+            <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.24 }}
+                style={{ padding: 22, borderRadius: 16, background: t.cardBg, border: `1px solid ${t.cardBorder}`, marginBottom: 18 }}
+            >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, letterSpacing: "-0.01em" }}>Reminder Agent Status</h3>
+                    <button
+                        onClick={handleTestNotification}
+                        style={{
+                            border: `1px solid ${t.accentBorder}`,
+                            background: t.accentSoft,
+                            color: t.accent,
+                            borderRadius: 8,
+                            padding: "6px 10px",
+                            fontSize: 11,
+                            fontWeight: 800,
+                            cursor: "pointer",
+                        }}
+                    >
+                        Send Test Notification
+                    </button>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10 }}>
+                    <div style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${t.divider}`, background: t.pageBg }}>
+                        <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>Status</div>
+                        <div style={{ fontSize: 13, color: t.text, fontWeight: 700, marginTop: 2 }}>{agentHealth.status}</div>
+                    </div>
+                    <div style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${t.divider}`, background: t.pageBg }}>
+                        <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>Permission</div>
+                        <div style={{ fontSize: 13, color: t.text, fontWeight: 700, marginTop: 2 }}>{agentHealth.permission}</div>
+                    </div>
+                    <div style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${t.divider}`, background: t.pageBg }}>
+                        <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>Last Run</div>
+                        <div style={{ fontSize: 13, color: t.text, fontWeight: 700, marginTop: 2 }}>
+                            {agentHealth.lastRun ? new Date(Number(agentHealth.lastRun)).toLocaleTimeString() : "Not yet"}
+                        </div>
+                    </div>
+                    <div style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${t.divider}`, background: t.pageBg }}>
+                        <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>Bookings Checked</div>
+                        <div style={{ fontSize: 13, color: t.text, fontWeight: 700, marginTop: 2 }}>{agentHealth.checkedCount}</div>
+                    </div>
+                    <div style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${t.divider}`, background: t.pageBg }}>
+                        <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>Last Notification</div>
+                        <div style={{ fontSize: 13, color: t.text, fontWeight: 700, marginTop: 2 }}>
+                            {agentHealth.lastNotifiedAt ? new Date(Number(agentHealth.lastNotifiedAt)).toLocaleTimeString() : "None"}
+                        </div>
+                    </div>
+                    <div style={{ padding: "10px 12px", borderRadius: 10, border: `1px solid ${t.divider}`, background: t.pageBg }}>
+                        <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>Last Notified Booking</div>
+                        <div style={{ fontSize: 13, color: t.text, fontWeight: 700, marginTop: 2 }}>{agentHealth.lastNotifiedBooking || "-"}</div>
+                    </div>
+                </div>
+                {agentHealth.lastError && (
+                    <div style={{ marginTop: 10, fontSize: 12, color: t.danger, fontWeight: 700 }}>
+                        Agent error: {agentHealth.lastError}
+                    </div>
+                )}
+            </motion.div>
 
             {/* Two Column: Activity + Challenges */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>

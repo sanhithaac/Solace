@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import JournalEntry from "@/models/JournalEntry";
 import User from "@/models/User";
+import { storeMemory } from "@/lib/ragMemory";
+import { analyzeJournal } from "@/lib/gemini";
 
 export async function GET(request: Request) {
     try {
@@ -27,24 +29,53 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Missing uid or content" }, { status: 400 });
         }
 
-        // 1. Create entry
+        // 1. AI analyze journal using Gemini (fallback if unavailable)
+        let derivedMood = mood || "Reflective";
+        let derivedSentiment = "Neutral";
+        let derivedTags = Array.isArray(tags) && tags.length ? tags : ["journal"];
+
+        try {
+            const analysis = await analyzeJournal(content);
+            derivedMood = analysis.mood || derivedMood;
+            derivedSentiment = analysis.sentiment || derivedSentiment;
+            if (analysis.tags?.length) derivedTags = analysis.tags;
+        } catch (err) {
+            console.error("Gemini journal fallback:", err);
+            derivedSentiment = content.length > 100 ? "Positive" : "Neutral";
+        }
+
+        // 2. Create entry
         const entry = new JournalEntry({
             uid,
             title: title || "Untitled Entry",
             content,
-            mood,
-            tags: tags || [],
-            // Simple sentiment mockup
-            sentiment: content.length > 100 ? "Positive" : "Neutral"
+            mood: derivedMood,
+            tags: derivedTags,
+            sentiment: derivedSentiment,
         });
 
         await entry.save();
 
-        // 2. Award XP to User in MongoDB
+        // 3. Award XP to User in MongoDB
         await User.findOneAndUpdate(
             { uid },
             { $inc: { xp: 50 } } // +50 XP for journaling
         );
+
+        // 4. Persist journal entry in semantic memory service
+        const journalPayload = `${title || "Untitled Entry"}\n${content}`;
+        await storeMemory({
+            uid,
+            text: journalPayload,
+            role: "user",
+            source: "journal",
+            metadata: {
+                journalEntryId: entry._id?.toString?.() || "",
+                mood: derivedMood,
+                sentiment: derivedSentiment,
+                tags: derivedTags,
+            },
+        });
 
         return NextResponse.json({ success: true, entry });
     } catch (error: any) {
