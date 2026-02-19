@@ -2,18 +2,19 @@
 import base64
 import json
 import math
-import sqlite3
+import os
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 from typing import Dict, List
 from sentence_transformers import SentenceTransformer
+from pymongo import MongoClient, ASCENDING, DESCENDING
 
 HOST = "127.0.0.1"
 PORT = 8001
 EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
-DB_DIR = Path(__file__).resolve().parent / "data"
-DB_PATH = DB_DIR / "memory_store.sqlite3"
+MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+MONGODB_DB = os.getenv("MONGODB_DB", "solace")
+MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION", "memories")
 
 MODEL = SentenceTransformer(EMBED_MODEL_NAME)
 DIM = MODEL.get_sentence_embedding_dimension()
@@ -50,60 +51,43 @@ def cosine(a: List[float], b: List[float]) -> float:
 
 
 class MemoryStore:
-    def __init__(self, db_path: Path):
-        DB_DIR.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(str(db_path), check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
+    def __init__(self, uri: str, db_name: str, collection_name: str):
+        self.client = MongoClient(uri)
+        self.collection = self.client[db_name][collection_name]
         self._init()
 
     def _init(self):
-        self.conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS memories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                uid TEXT NOT NULL,
-                source TEXT NOT NULL,
-                role TEXT NOT NULL,
-                text_b64 TEXT NOT NULL,
-                embedding_json TEXT NOT NULL,
-                metadata_json TEXT NOT NULL,
-                created_at_ms INTEGER NOT NULL
-            )
-            """
-        )
-        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_mem_uid_time ON memories(uid, created_at_ms DESC)")
-        self.conn.commit()
+        self.collection.create_index([("uid", ASCENDING), ("created_at_ms", DESCENDING)])
 
     def store(self, uid: str, text: str, role: str, source: str, metadata: Dict):
-        text_b64 = encode_text(text)
         embedding = embed_text(text)
-        self.conn.execute(
-            """
-            INSERT INTO memories(uid, source, role, text_b64, embedding_json, metadata_json, created_at_ms)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (uid, source, role, text_b64, json.dumps(embedding), json.dumps(metadata or {}), now_ms()),
+        self.collection.insert_one(
+            {
+                "uid": uid,
+                "source": source,
+                "role": role,
+                "text": text,
+                "embedding": embedding,
+                "metadata": metadata or {},
+                "created_at_ms": now_ms(),
+            }
         )
-        self.conn.commit()
 
     def retrieve(self, uid: str, query: str, top_k: int = 8) -> List[Dict]:
         qvec = embed_text(query)
-        rows = self.conn.execute(
-            "SELECT id, uid, source, role, text_b64, embedding_json, metadata_json, created_at_ms FROM memories WHERE uid=?",
-            (uid,),
-        ).fetchall()
+        rows = list(self.collection.find({"uid": uid}))
         if not rows:
             return []
 
-        newest = max(row["created_at_ms"] for row in rows)
-        oldest = min(row["created_at_ms"] for row in rows)
+        newest = max(row.get("created_at_ms", 0) for row in rows)
+        oldest = min(row.get("created_at_ms", 0) for row in rows)
         span = max(1, newest - oldest)
 
         scored = []
         for row in rows:
-            emb = json.loads(row["embedding_json"])
+            emb = row.get("embedding", [])
             sim = cosine(qvec, emb)
-            recency = (row["created_at_ms"] - oldest) / span
+            recency = (row.get("created_at_ms", 0) - oldest) / span
             score = (0.85 * sim) + (0.15 * recency)
             scored.append((score, sim, row))
 
@@ -112,13 +96,13 @@ class MemoryStore:
         for score, sim, row in scored[: max(1, top_k)]:
             out.append(
                 {
-                    "id": row["id"],
-                    "uid": row["uid"],
-                    "source": row["source"],
-                    "role": row["role"],
-                    "text": decode_text(row["text_b64"]),
-                    "metadata": json.loads(row["metadata_json"] or "{}"),
-                    "createdAtMs": row["created_at_ms"],
+                    "id": str(row.get("_id")),
+                    "uid": row.get("uid"),
+                    "source": row.get("source"),
+                    "role": row.get("role"),
+                    "text": row.get("text", ""),
+                    "metadata": row.get("metadata", {}),
+                    "createdAtMs": row.get("created_at_ms"),
                     "similarity": sim,
                     "score": score,
                 }
@@ -126,7 +110,7 @@ class MemoryStore:
         return out
 
 
-STORE = MemoryStore(DB_PATH)
+STORE = MemoryStore(MONGODB_URI, MONGODB_DB, MONGODB_COLLECTION)
 
 
 class Handler(BaseHTTPRequestHandler):

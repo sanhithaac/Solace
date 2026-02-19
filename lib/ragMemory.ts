@@ -1,5 +1,5 @@
 type StoredMemory = {
-    id: number;
+    id: string;
     uid: string;
     source: string;
     role: string;
