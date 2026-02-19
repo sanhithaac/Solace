@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import DoctorBooking from "@/models/DoctorBooking";
 import DoctorProfile from "@/models/DoctorProfile";
 import DoctorSlot from "@/models/DoctorSlot";
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
     try {
