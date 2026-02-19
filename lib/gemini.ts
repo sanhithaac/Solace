@@ -231,8 +231,9 @@ export async function shouldExtractMemory(text: string) {
 export async function generateChatReply(params: {
     userText: string;
     retrievedContext: Array<{ source: string; role: string; text: string; similarity: number; createdAtMs: number }>;
+    responseLanguage?: "english" | "hindi" | "tamil" | "telugu";
 }) {
-    const { userText, retrievedContext } = params;
+    const { userText, retrievedContext, responseLanguage = "english" } = params;
     const contextText =
         retrievedContext.length > 0
             ? retrievedContext
@@ -245,6 +246,15 @@ export async function generateChatReply(params: {
                 .join("\n")
             : "NO_RELEVANT_MEMORY";
 
+    const languageInstruction =
+        responseLanguage === "english"
+            ? "Reply only in English."
+            : responseLanguage === "hindi"
+                ? "Reply only in Hindi (Devanagari script)."
+                : responseLanguage === "tamil"
+                    ? "Reply only in Tamil script."
+                    : "Reply only in Telugu script.";
+
     const system = [
         "You are a calm, charming, emotionally intelligent friend.",
         "Use only the memories provided below as grounding context; do not invent extra past history.",
@@ -253,6 +263,7 @@ export async function generateChatReply(params: {
         "Keep replies crisp: 2 to 4 short sentences max, under 90 words.",
         "Sound natural and warm, not clinical, not preachy, not like a yoga instructor.",
         "Use simple language and one practical next step.",
+        languageInstruction,
     ].join(" ");
 
     return callLLM(
