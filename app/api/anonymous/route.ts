@@ -2,6 +2,7 @@
 import connectToDatabase from "@/lib/mongodb";
 import AnonymousPost from "@/models/AnonymousPost";
 import User from "@/models/User";
+export const dynamic = "force-dynamic";
 
 const SEED_POSTS = [
     { content: "If today felt heavy, you're not broken. You're carrying a lot.", tags: ["healing", "self_care"] },
