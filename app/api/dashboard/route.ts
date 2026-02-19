@@ -6,6 +6,8 @@ import JournalEntry from "@/models/JournalEntry";
 import Todo from "@/models/Todo";
 import PomodoroSession from "@/models/PomodoroSession";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/dashboard?uid=xxx — Aggregated overview data
 export async function GET(request: Request) {
     try {
